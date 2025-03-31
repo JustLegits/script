@@ -12,8 +12,8 @@ local start = tick()
 local client = game:GetService('Players').LocalPlayer;
 local executor = identifyexecutor and identifyexecutor() or 'Unknown'
 
-local UI = loadstring(game:HttpGet('https://raw.githubusercontent.com/JustLegits/miscscript/refs/heads/main/UI'))()
-local themeManager = loadstring(game:HttpGet('https://raw.githubusercontent.com/JustLegits/miscscript/refs/heads/main/ThemeManager.lua'))()
+local UI = loadstring(game:HttpGet('https://raw.githubusercontent.com/bardium/LinoriaLib/main/Library.lua'))()
+local themeManager = loadstring(game:HttpGet('https://raw.githubusercontent.com/bardium/LinoriaLib/main/addons/ThemeManager.lua'))()
 
 local metadata = loadstring(game:HttpGet('https://raw.githubusercontent.com/bardium/one-punch-hero/main/metadata.lua'))()
 local httpService = game:GetService('HttpService')

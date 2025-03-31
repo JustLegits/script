@@ -12,8 +12,8 @@ local start = tick()
 local client = game:GetService('Players').LocalPlayer;
 local executor = identifyexecutor and identifyexecutor() or 'Unknown'
 
-local UI = loadstring(game:HttpGet('https://raw.githubusercontent.com/bardium/LinoriaLib/main/Library.lua'))()
-local themeManager = loadstring(game:HttpGet('https://raw.githubusercontent.com/bardium/LinoriaLib/main/addons/ThemeManager.lua'))()
+local UI = loadstring(game:HttpGet('https://raw.githubusercontent.com/JustLegits/miscscript/refs/heads/main/UI'))()
+local themeManager = loadstring(game:HttpGet('https://raw.githubusercontent.com/JustLegits/miscscript/refs/heads/main/ThemeManager.lua'))()
 
 local metadata = loadstring(game:HttpGet('https://raw.githubusercontent.com/bardium/one-punch-hero/main/metadata.lua'))()
 local httpService = game:GetService('HttpService')
@@ -485,7 +485,7 @@ Groups.Main:AddButton('Update target mobs', function()
 	Options.TargetMobs:SetValues(TargetMobs)
 end)
 Groups.Main:AddDivider()
-Groups.Main:AddSlider('YOffset', { Text = 'Height offset', Min = -20, Max = 20, Default = -7, Suffix = ' studs', Rounding = 1, Compact = true, Tooltip = 'Height offset when teleporting to mobs' })
+Groups.Main:AddSlider('YOffset', { Text = 'Height offset', Min = -20, Max = 20, Default = -9.9, Suffix = ' studs', Rounding = 1, Compact = true, Tooltip = 'Height offset when teleporting to mobs' })
 Groups.Main:AddSlider('XOffset', { Text = 'X position offset', Min = -20, Max = 20, Default = 0, Suffix = ' studs', Rounding = 1, Compact = true, Tooltip = 'X offset when teleporting to mobs' })
 Groups.Main:AddSlider('ZOffset', { Text = 'Z position offset', Min = -20, Max = 20, Default = 0, Suffix = ' studs', Rounding = 1, Compact = true, Tooltip = 'Z offset when teleporting to mobs' })
 Groups.Main:AddDivider()

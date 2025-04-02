@@ -576,6 +576,52 @@ themeManager:ApplyToGroupbox(Tabs.UISettings:AddLeftGroupbox('Themes'))
 UI:Notify(string.format('Loaded script in %.4f second(s)!', tick() - start), 3)
 if executor ~= 'Electron' and executor ~= 'Valyse' then
 	UI:Notify(string.format('You may experience problems with the script/UI because you are using %s', executor), 30)
+
+--[[
+UI Press P and emulate click for mobile
+]]
+
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Tạo ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = playerGui
+screenGui.ResetOnSpawn = false -- Giữ UI khi nhân vật hồi sinh
+
+-- Tạo Nút "PRESS P"
+local pButton = Instance.new("TextButton")
+pButton.Size = UDim2.new(0, 100, 0, 50) -- Kích thước nút
+pButton.Position = UDim2.new(0, 10, 0.5, -50) -- Giữa bên trái
+pButton.Text = "PRESS P"
+pButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255) -- Màu xanh
+pButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- Chữ trắng
+pButton.BorderSizePixel = 2 -- Viền
+pButton.Parent = screenGui
+
+-- Khi bấm vào nút "PRESS P", giả lập bấm phím "P"
+pButton.MouseButton1Click:Connect(function()
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.P, false, game) -- Nhấn P
+    task.wait(0.05)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.P, false, game) -- Nhả P
+    print("✅ Đã giả lập bấm phím 'P'!")
+end)
+
+-- Lắng nghe sự kiện chạm vào màn hình và giả lập click chuột trái tại vị trí chạm
+UserInputService.TouchStarted:Connect(function(touch)
+    local x, y = touch.Position.X, touch.Position.Y
+    VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 0) -- Nhấn chuột trái
+    task.wait(0.05)
+    VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 0) -- Nhả chuột trái
+    print("✅ Click đã được giả lập tại vị trí: " .. tostring(touch.Position))
+end)
+
+print("✅ UI và chức năng giả lập đã sẵn sàng!")
+
 	task.wait()
 	UI:Notify(string.format('Exploits this script works well with: Electron and Valyse'), 30)
 end

@@ -1,0 +1,115 @@
+local function createUI(ghost)
+    if game.Players.LocalPlayer:FindFirstChild("PlayerGui"):FindFirstChild("GhostInfoUI") then
+        game.Players.LocalPlayer.PlayerGui.GhostInfoUI:Destroy()
+    end
+
+    local ui = Instance.new("ScreenGui")
+    ui.Name = "GhostInfoUI"
+    ui.ResetOnSpawn = false
+    ui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 300, 0, 300)
+    frame.Position = UDim2.new(1, -310, 0.5, -150)
+    frame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+    frame.BorderSizePixel = 2
+    frame.BorderColor3 = Color3.new(1, 1, 1)
+    frame.Parent = ui
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 30)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.Text = "Ghost Information"
+    title.TextColor3 = Color3.new(1, 1, 1)
+    title.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    title.Font = Enum.Font.SourceSansBold
+    title.TextSize = 20
+    title.Parent = frame
+
+    local infoLabel = Instance.new("TextLabel")
+    infoLabel.Size = UDim2.new(1, -10, 1, -40)
+    infoLabel.Position = UDim2.new(0, 5, 0, 35)
+    infoLabel.TextColor3 = Color3.new(1, 1, 1)
+    infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+    infoLabel.TextYAlignment = Enum.TextYAlignment.Top
+    infoLabel.BackgroundTransparency = 1
+    infoLabel.Font = Enum.Font.SourceSans
+    infoLabel.TextSize = 16
+    infoLabel.TextWrapped = true
+    infoLabel.Parent = frame
+
+    local function updateInfo()
+        if ghost then
+            local attributes = {
+                "Age",
+                "CameraKillOffset",
+                "CurrentRoom",
+                "FavoriteRoom",
+                "Gender",
+                "GhostType",
+                "Hunting",
+                "IsGhost",
+                "LaserVisible",
+                "PhotoRewardAvailable",
+                "VisualModel"
+            }
+            local info = ""
+            for _, attribute in ipairs(attributes) do
+                local value = ghost:GetAttribute(attribute)
+                if value ~= nil then
+                    info = info .. attribute .. ": " .. tostring(value) .. "\n"
+                end
+            end
+            infoLabel.Text = info
+        else
+            infoLabel.Text = "Ghost not found!"
+        end
+    end
+
+    local running = true
+    coroutine.wrap(function()
+        while running do
+            updateInfo()
+            task.wait(3)
+        end
+    end)()
+
+    local closeButton = Instance.new("TextButton")
+    closeButton.Size = UDim2.new(0, 30, 0, 30)
+    closeButton.Position = UDim2.new(1, -35, 0, 0)
+    closeButton.Text = "X"
+    closeButton.TextColor3 = Color3.new(1, 1, 1)
+    closeButton.BackgroundColor3 = Color3.new(1, 0, 0)
+    closeButton.Font = Enum.Font.SourceSansBold
+    closeButton.TextSize = 18
+    closeButton.Parent = frame
+    closeButton.MouseButton1Click:Connect(function()
+        running = false
+        ui:Destroy()
+    end)
+end
+
+local function highlightGhost(ghost)
+    if ghost then
+        local highlight = Instance.new("Highlight")
+        highlight.FillColor = Color3.new(1, 0, 0)
+        highlight.FillTransparency = 0.5
+        highlight.OutlineTransparency = 0
+        highlight.Adornee = ghost
+        highlight.Parent = ghost
+
+        task.delay(5, function()
+            if highlight and highlight.Parent then
+                highlight:Destroy()
+            end
+        end)
+    end
+end
+
+local ghost = game.Workspace:FindFirstChild("Ghost")
+if ghost then
+    createUI(ghost)
+    highlightGhost(ghost)
+else
+    warn("Ghost object not found!")
+end

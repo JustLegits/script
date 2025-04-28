@@ -61,6 +61,13 @@ local function createUI(ghost)
                     info = info .. attribute .. ": " .. tostring(value) .. "\n"
                 end
             end
+-- Check for Ghost Orb
+	local ghostOrb = workspace:FindFirstChild("GhostOrb")
+	if ghostOrb then
+	    info = info .. "Ghost Orb: Yes\n"
+	else
+	    info = info .. "Ghost Orb: No\n"
+	end
             infoLabel.Text = info
         else
             infoLabel.Text = "Ghost not found!"

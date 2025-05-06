@@ -124,6 +124,97 @@ end
 
 
 
+
+
+
+-- EMF LEVEL
+local player = game.Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+-- Tạo ScreenGui mới
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "EMFDisplayUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+-- Tạo Frame chứa thông tin
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 220, 0, 70)
+frame.Position = UDim2.new(0, 20, 0, 20)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BorderSizePixel = 0
+frame.Parent = screenGui
+-- Tạo Label hiển thị mức EMF
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(1, -40, 1, 0)
+label.Position = UDim2.new(0, 10, 0, 0)
+label.BackgroundTransparency = 1
+label.TextColor3 = Color3.new(1, 1, 1)
+label.Font = Enum.Font.SourceSansBold
+label.TextSize = 20
+label.TextXAlignment = Enum.TextXAlignment.Left
+label.Text = "EMF Level: --"
+label.Parent = frame
+-- Tạo nút đóng
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Position = UDim2.new(1, -35, 0, 5)
+closeButton.Text = "X"
+closeButton.TextColor3 = Color3.new(1, 1, 1)
+closeButton.BackgroundColor3 = Color3.new(1, 0, 0)
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.TextSize = 18
+closeButton.Parent = frame
+local stopped = false
+closeButton.MouseButton1Click:Connect(function()
+    stopped = true
+    screenGui:Destroy()
+end)
+-- Hàm hỗ trợ: Chuyển đổi chuỗi EMF sang số
+local function parseEMFLevel(text)
+    if typeof(text) ~= "string" then
+        return 0
+    end
+    local level = string.match(text, "EMF Level%s*(%-?%d+%.?%d*)") -- Hỗ trợ số âm và thập phân
+    return tonumber(level) or 0
+end
+-- Hàm tìm kiếm nhãn EMF bằng cách tìm parent có child là "EMFLevel"
+local function findEMFLabel()
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("TextLabel") and descendant.Name == "EMFLevel" then
+            return descendant
+        end
+    end
+    return nil
+end
+-- Biến theo dõi mức EMF cao nhất đã thấy
+local highestLevelSeen = 0
+-- Vòng lặp cập nhật
+task.spawn(function()
+    while not stopped do
+        local emfLabel = findEMFLabel()
+        if emfLabel then
+            local currentText = emfLabel.Text
+            local level = parseEMFLevel(currentText)
+
+            if level > highestLevelSeen then
+                highestLevelSeen = level
+                label.Text = "EMF Level: " .. tostring(highestLevelSeen)
+            end
+
+            if highestLevelSeen >= 5 then
+                label.Text = "EMF Level: 5 (MAX)"
+                break
+            end
+        end
+        task.wait(0.1)
+    end
+end)
+
+
+
+
+
+
+
 -- ESP GHOST, ITEMS
 -- Compiled with roblox-ts v3.0.0
 local Players = game:GetService("Players")

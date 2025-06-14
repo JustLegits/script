@@ -1,0 +1,692 @@
+--|| - World Of Stands Auto Chest Script (With Hide/Show UI) - ||--
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+-- Configuration
+local CONFIG = {
+    enabled = false,
+    teleportSpeed = 0.3,     -- Tốc độ teleport (giây)
+    holdDuration = 2.2,      -- Thời gian hold E (giây)
+    searchRadius = 2000,     -- Bán kính tìm kiếm rương
+    autoChangeArea = true,   -- Tự động chuyển khu vực
+    debugMode = true,        -- Hiển thị debug info
+    recheckDelay = 1,        -- Thời gian chờ giữa các lần check
+    preOpenDelay = 1,        -- Delay trước khi mở chest (giây)
+    areaChangeDelay = 10     -- Thời gian chờ trước khi đổi khu vực (giây)
+}
+
+-- Travel Locations
+local TRAVEL_LOCATIONS = {
+    "New York",
+    "Joestar Mansion"
+}
+
+-- Variables
+local currentChests = {}
+local isProcessing = false
+local currentTarget = nil
+local holdConnection = nil
+local mainLoop = nil
+local currentAreaIndex = 1
+local lastChestFoundTime = 0
+local areaChangeTimer = 0
+
+-- GUI Creation
+local function createGUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "ChestFinderGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = player:WaitForChild("PlayerGui")
+    
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 350, 0, 250)
+    mainFrame.Position = UDim2.new(0, 10, 0, 10)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = mainFrame
+    
+    -- Title
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -80, 0, 30)
+    title.Position = UDim2.new(0, 10, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "🗝️ WOS Auto Chest"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextScaled = true
+    title.Font = Enum.Font.SourceSansBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = mainFrame
+    
+    -- Hide Button
+    local hideButton = Instance.new("TextButton")
+    hideButton.Name = "HideButton"
+    hideButton.Size = UDim2.new(0, 30, 0, 30)
+    hideButton.Position = UDim2.new(1, -70, 0, 5)
+    hideButton.BackgroundColor3 = Color3.fromRGB(255, 170, 0)
+    hideButton.Text = "−"
+    hideButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    hideButton.TextScaled = true
+    hideButton.Font = Enum.Font.SourceSansBold
+    hideButton.BorderSizePixel = 0
+    hideButton.Parent = mainFrame
+    
+    local hideCorner = Instance.new("UICorner")
+    hideCorner.CornerRadius = UDim.new(0, 6)
+    hideCorner.Parent = hideButton
+    
+    -- Close Button
+    local closeButton = Instance.new("TextButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Size = UDim2.new(0, 30, 0, 30)
+    closeButton.Position = UDim2.new(1, -35, 0, 5)
+    closeButton.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
+    closeButton.Text = "✕"
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.TextScaled = true
+    closeButton.Font = Enum.Font.SourceSansBold
+    closeButton.BorderSizePixel = 0
+    closeButton.Parent = mainFrame
+    
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 6)
+    closeCorner.Parent = closeButton
+    
+    -- Toggle Button
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Size = UDim2.new(0.8, 0, 0, 35)
+    toggleButton.Position = UDim2.new(0.1, 0, 0, 40)
+    toggleButton.BackgroundColor3 = Color3.fromRGB(85, 170, 85)
+    toggleButton.Text = "▶️ Start Auto Chest"
+    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleButton.TextScaled = true
+    toggleButton.Font = Enum.Font.SourceSansBold
+    toggleButton.BorderSizePixel = 0
+    toggleButton.Parent = mainFrame
+    
+    local toggleCorner = Instance.new("UICorner")
+    toggleCorner.CornerRadius = UDim.new(0, 6)
+    toggleCorner.Parent = toggleButton
+    
+    -- Status Label
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(1, -20, 0, 100)
+    statusLabel.Position = UDim2.new(0, 10, 0, 85)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "Status: Ready\nChests found: 0\nCurrent target: None\nArea: Waiting...\nNext area change: --"
+    statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    statusLabel.TextScaled = true
+    statusLabel.Font = Enum.Font.SourceSans
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    statusLabel.TextYAlignment = Enum.TextYAlignment.Top
+    statusLabel.Parent = mainFrame
+    
+    -- Progress Bar
+    local progressFrame = Instance.new("Frame")
+    progressFrame.Size = UDim2.new(0.9, 0, 0, 20)
+    progressFrame.Position = UDim2.new(0.05, 0, 0, 195)
+    progressFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    progressFrame.BorderSizePixel = 0
+    progressFrame.Parent = mainFrame
+    
+    local progressCorner = Instance.new("UICorner")
+    progressCorner.CornerRadius = UDim.new(0, 4)
+    progressCorner.Parent = progressFrame
+    
+    local progressBar = Instance.new("Frame")
+    progressBar.Size = UDim2.new(0, 0, 1, 0)
+    progressBar.BackgroundColor3 = Color3.fromRGB(85, 170, 85)
+    progressBar.BorderSizePixel = 0
+    progressBar.Parent = progressFrame
+    
+    local progressBarCorner = Instance.new("UICorner")
+    progressBarCorner.CornerRadius = UDim.new(0, 4)
+    progressBarCorner.Parent = progressBar
+    
+    -- ===== TOGGLE BUTTON (Show UI when hidden) =====
+    local showButton = Instance.new("TextButton")
+    showButton.Name = "ShowUIButton"
+    showButton.Size = UDim2.new(0, 60, 0, 60)
+    showButton.Position = UDim2.new(0, 10, 1, -70) -- Góc dưới bên trái
+    showButton.BackgroundColor3 = Color3.fromRGB(85, 170, 85)
+    showButton.Text = "🗝️"
+    showButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    showButton.TextScaled = true
+    showButton.Font = Enum.Font.SourceSansBold
+    showButton.BorderSizePixel = 0
+    showButton.Visible = false -- Ẩn ban đầu
+    showButton.Parent = screenGui
+    
+    local showCorner = Instance.new("UICorner")
+    showCorner.CornerRadius = UDim.new(0, 30) -- Làm tròn hoàn toàn
+    showCorner.Parent = showButton
+    
+    -- Status indicator on show button
+    local statusIndicator = Instance.new("TextLabel")
+    statusIndicator.Name = "StatusIndicator"
+    statusIndicator.Size = UDim2.new(1, 0, 0.3, 0)
+    statusIndicator.Position = UDim2.new(0, 0, 0.7, 0)
+    statusIndicator.BackgroundTransparency = 1
+    statusIndicator.Text = "OFF"
+    statusIndicator.TextColor3 = Color3.fromRGB(255, 85, 85)
+    statusIndicator.TextScaled = true
+    statusIndicator.Font = Enum.Font.SourceSansBold
+    statusIndicator.Parent = showButton
+    
+    return {
+        gui = screenGui,
+        mainFrame = mainFrame,
+        toggleButton = toggleButton,
+        statusLabel = statusLabel,
+        progressBar = progressBar,
+        hideButton = hideButton,
+        closeButton = closeButton,
+        showButton = showButton,
+        statusIndicator = statusIndicator
+    }
+end
+
+local gui = createGUI()
+
+-- Hide/Show UI Functions
+local function hideUI()
+    gui.mainFrame.Visible = false
+    gui.showButton.Visible = true
+    
+    -- Animation for show button
+    gui.showButton.Size = UDim2.new(0, 0, 0, 0)
+    gui.showButton.Visible = true
+    
+    local tween = TweenService:Create(
+        gui.showButton,
+        TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        {Size = UDim2.new(0, 60, 0, 60)}
+    )
+    tween:Play()
+    
+    debugPrint("UI hidden - Show button visible")
+end
+
+local function showUI()
+    -- Animation for hiding show button
+    local tween = TweenService:Create(
+        gui.showButton,
+        TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+        {Size = UDim2.new(0, 0, 0, 0)}
+    )
+    
+    tween:Play()
+    tween.Completed:Connect(function()
+        gui.showButton.Visible = false
+        gui.mainFrame.Visible = true
+    end)
+    
+    debugPrint("UI shown - Main frame visible")
+end
+
+-- Update show button status
+local function updateShowButtonStatus(isRunning)
+    if isRunning then
+        gui.statusIndicator.Text = "ON"
+        gui.statusIndicator.TextColor3 = Color3.fromRGB(85, 255, 85)
+        gui.showButton.BackgroundColor3 = Color3.fromRGB(85, 255, 85)
+    else
+        gui.statusIndicator.Text = "OFF"
+        gui.statusIndicator.TextColor3 = Color3.fromRGB(255, 85, 85)
+        gui.showButton.BackgroundColor3 = Color3.fromRGB(85, 170, 85)
+    end
+end
+
+-- Utility Functions
+local function debugPrint(message)
+    if CONFIG.debugMode then
+        print("🗝️ [Auto Chest] " .. message)
+    end
+end
+
+local function updateStatus(status, chestsFound, target, area, nextChange)
+    gui.statusLabel.Text = string.format(
+        "Status: %s\nChests found: %d\nCurrent target: %s\nArea: %s\nNext area change: %s",
+        status or "Unknown",
+        chestsFound or #currentChests,
+        target or "None",
+        area or "Unknown",
+        nextChange or "--"
+    )
+end
+
+local function updateProgressBar(progress)
+    local tween = TweenService:Create(
+        gui.progressBar,
+        TweenInfo.new(0.1, Enum.EasingStyle.Quad),
+        {Size = UDim2.new(progress, 0, 1, 0)}
+    )
+    tween:Play()
+end
+
+-- Travel to Area
+local function travelToArea(areaName)
+    debugPrint("Traveling to area: " .. areaName)
+    
+    local travelLocations = workspace:FindFirstChild("TravelLocations")
+    if not travelLocations then
+        debugPrint("TravelLocations not found!")
+        return false
+    end
+    
+    local targetArea = travelLocations:FindFirstChild(areaName)
+    if not targetArea then
+        debugPrint("Area not found: " .. areaName)
+        return false
+    end
+    
+    -- Get travel position
+    local travelPosition
+    if targetArea:IsA("Model") then
+        local primaryPart = targetArea.PrimaryPart or targetArea:FindFirstChildOfClass("Part")
+        if primaryPart then
+            travelPosition = primaryPart.Position
+        end
+    elseif targetArea:IsA("Part") then
+        travelPosition = targetArea.Position
+    end
+    
+    if not travelPosition then
+        debugPrint("Could not determine travel position for: " .. areaName)
+        return false
+    end
+    
+    -- Teleport to area
+    local targetCFrame = CFrame.new(travelPosition + Vector3.new(0, 5, 0))
+    humanoidRootPart.CFrame = targetCFrame
+    
+    debugPrint("Teleported to: " .. areaName)
+    
+    -- Wait for area to load
+    wait(2)
+    
+    -- Reset chest search timer
+    lastChestFoundTime = tick()
+    areaChangeTimer = 0
+    
+    return true
+end
+
+-- Chest Detection
+local function findNumberedChests()
+    currentChests = {}
+    
+    local chestContainer = workspace:FindFirstChild("ChestContainer")
+    if not chestContainer then
+        debugPrint("ChestContainer not found!")
+        return {}
+    end
+    
+    -- Find all numbered chests
+    for _, child in pairs(chestContainer:GetChildren()) do
+        local childName = child.Name
+        
+        -- Check if name is a number
+        if tonumber(childName) then
+            debugPrint("Found numbered chest: " .. childName)
+            table.insert(currentChests, child)
+        end
+    end
+    
+    if #currentChests > 0 then
+        lastChestFoundTime = tick()
+    end
+    
+    debugPrint("Total numbered chests found: " .. #currentChests)
+    return currentChests
+end
+
+-- Get chest position
+local function getChestPosition(chest)
+    if chest:IsA("Model") then
+        local primaryPart = chest.PrimaryPart or chest:FindFirstChildOfClass("Part")
+        if primaryPart then
+            return primaryPart.Position
+        end
+    elseif chest:IsA("Part") then
+        return chest.Position
+    end
+    return nil
+end
+
+-- Distance Calculation
+local function getDistance(chest)
+    local chestPos = getChestPosition(chest)
+    if not chestPos then return math.huge end
+    
+    return (humanoidRootPart.Position - chestPos).Magnitude
+end
+
+-- Find Closest Chest
+local function findClosestChest()
+    if #currentChests == 0 then return nil end
+    
+    local closestChest = nil
+    local closestDistance = math.huge
+    
+    for _, chest in pairs(currentChests) do
+        if chest and chest.Parent then
+            local distance = getDistance(chest)
+            if distance < closestDistance and distance <= CONFIG.searchRadius then
+                closestDistance = distance
+                closestChest = chest
+            end
+        end
+    end
+    
+    return closestChest, closestDistance
+end
+
+-- Teleport to Chest
+local function teleportToChest(chest)
+    if not chest or not chest.Parent then return false end
+    
+    local chestPosition = getChestPosition(chest)
+    if not chestPosition then
+        debugPrint("Could not determine chest position for: " .. chest.Name)
+        return false
+    end
+    
+    local targetPosition = chestPosition + Vector3.new(0, 5, 0)
+    
+    debugPrint("Teleporting to chest: " .. chest.Name)
+    
+    local tweenInfo = TweenInfo.new(CONFIG.teleportSpeed, Enum.EasingStyle.Quad)
+    local tween = TweenService:Create(
+        humanoidRootPart,
+        tweenInfo,
+        {CFrame = CFrame.new(targetPosition)}
+    )
+    
+    tween:Play()
+    tween.Completed:Wait()
+    
+    -- Delay trước khi mở chest
+    debugPrint("Waiting " .. CONFIG.preOpenDelay .. "s before opening chest...")
+    wait(CONFIG.preOpenDelay)
+    
+    return true
+end
+
+-- Hold E Simulation
+local function holdEToOpen(chest)
+    debugPrint("Starting hold E for chest: " .. chest.Name)
+    
+    local startTime = tick()
+    local duration = CONFIG.holdDuration
+    local keyHeld = false
+    
+    -- Start holding E
+    holdConnection = RunService.Heartbeat:Connect(function()
+        local elapsed = tick() - startTime
+        local progress = math.min(elapsed / duration, 1)
+        
+        updateProgressBar(progress)
+        
+        -- Hold E key
+        if not keyHeld then
+            game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.E, false, game)
+            keyHeld = true
+        end
+        
+        if elapsed >= duration then
+            -- Release E key
+            game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            debugPrint("Hold E completed for chest: " .. chest.Name)
+            updateProgressBar(0)
+            
+            if holdConnection then
+                holdConnection:Disconnect()
+                holdConnection = nil
+            end
+        end
+    end)
+    
+    -- Wait for completion
+    while holdConnection do
+        wait(0.1)
+    end
+    
+    wait(0.5) -- Wait after opening
+end
+
+-- Check if chest still exists
+local function isChestValid(chest)
+    return chest and chest.Parent and workspace.ChestContainer:FindFirstChild(chest.Name)
+end
+
+-- Remove invalid chests
+local function cleanupChestList()
+    for i = #currentChests, 1, -1 do
+        if not isChestValid(currentChests[i]) then
+            debugPrint("Removing invalid chest: " .. (currentChests[i].Name or "Unknown"))
+            table.remove(currentChests, i)
+        end
+    end
+end
+
+-- Get current area name
+local function getCurrentArea()
+    return TRAVEL_LOCATIONS[currentAreaIndex] or "Unknown"
+end
+
+-- Change to next area
+local function changeToNextArea()
+    currentAreaIndex = currentAreaIndex + 1
+    if currentAreaIndex > #TRAVEL_LOCATIONS then
+        currentAreaIndex = 1
+    end
+    
+    local nextArea = TRAVEL_LOCATIONS[currentAreaIndex]
+    debugPrint("Changing to next area: " .. nextArea)
+    
+    return travelToArea(nextArea)
+end
+
+-- Calculate time until next area change
+local function getTimeUntilAreaChange()
+    if #currentChests > 0 then
+        return "Chests available"
+    end
+    
+    local timeSinceLastChest = tick() - lastChestFoundTime
+    local timeRemaining = CONFIG.areaChangeDelay - timeSinceLastChest
+    
+    if timeRemaining <= 0 then
+        return "Changing now..."
+    else
+        return string.format("%.0fs", timeRemaining)
+    end
+end
+
+-- Main Auto Chest Loop
+local function autoChestLoop()
+    -- Start in first area
+    travelToArea(TRAVEL_LOCATIONS[currentAreaIndex])
+    
+    while CONFIG.enabled do
+        local currentArea = getCurrentArea()
+        local timeUntilChange = getTimeUntilAreaChange()
+        
+        updateStatus("Scanning for chests...", #currentChests, "None", currentArea, timeUntilChange)
+        
+        -- Find numbered chests in current area
+        findNumberedChests()
+        
+        if #currentChests == 0 then
+            debugPrint("No numbered chests found in current area: " .. currentArea)
+            
+            -- Check if it's time to change area
+            local timeSinceLastChest = tick() - lastChestFoundTime
+            if timeSinceLastChest >= CONFIG.areaChangeDelay then
+                updateStatus("Changing area...", 0, "None", currentArea, "Now")
+                if changeToNextArea() then
+                    continue -- Restart loop in new area
+                end
+            else
+                local remaining = CONFIG.areaChangeDelay - timeSinceLastChest
+                updateStatus("No chests found", 0, "None", currentArea, string.format("%.0fs", remaining))
+            end
+            
+            wait(CONFIG.recheckDelay)
+        else
+            -- Process chests
+            while #currentChests > 0 and CONFIG.enabled do
+                -- Clean up invalid chests first
+                cleanupChestList()
+                
+                if #currentChests == 0 then break end
+                
+                local closestChest, distance = findClosestChest()
+                
+                if not closestChest then
+                    debugPrint("No accessible chests found")
+                    break
+                end
+                
+                currentTarget = closestChest.Name
+                updateStatus("Moving to chest...", #currentChests, currentTarget, currentArea, "Chests available")
+                
+                -- Teleport to chest (with delay)
+                if teleportToChest(closestChest) then
+                    -- Double check chest still exists after teleport and delay
+                    if isChestValid(closestChest) then
+                        updateStatus("Opening chest...", #currentChests, currentTarget, currentArea, "Chests available")
+                        holdEToOpen(closestChest)
+                        
+                        -- Remove opened chest from list
+                        for i, v in pairs(currentChests) do
+                            if v == closestChest then
+                                table.remove(currentChests, i)
+                                debugPrint("Removed opened chest: " .. currentTarget)
+                                break
+                            end
+                        end
+                        
+                        updateStatus("Chest opened!", #currentChests, "None", currentArea, "Chests available")
+                    else
+                        debugPrint("Chest disappeared after teleport: " .. currentTarget)
+                        cleanupChestList()
+                    end
+                else
+                    debugPrint("Failed to teleport to chest: " .. currentTarget)
+                    -- Remove failed chest from list
+                    for i, v in pairs(currentChests) do
+                        if v == closestChest then
+                            table.remove(currentChests, i)
+                            break
+                        end
+                    end
+                end
+                
+                wait(CONFIG.recheckDelay)
+            end
+        end
+        
+        wait(CONFIG.recheckDelay)
+    end
+    
+    updateStatus("Stopped", #currentChests, "None", "Idle", "--")
+    debugPrint("Auto chest loop stopped")
+end
+
+-- GUI Events
+gui.toggleButton.MouseButton1Click:Connect(function()
+    CONFIG.enabled = not CONFIG.enabled
+    
+    if CONFIG.enabled then
+        gui.toggleButton.Text = "⏹️ Stop Auto Chest"
+        gui.toggleButton.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
+        debugPrint("Auto chest started!")
+        
+        -- Reset timers
+        lastChestFoundTime = tick()
+        areaChangeTimer = 0
+        
+        updateShowButtonStatus(true)
+        mainLoop = spawn(autoChestLoop)
+    else
+        gui.toggleButton.Text = "▶️ Start Auto Chest"
+        gui.toggleButton.BackgroundColor3 = Color3.fromRGB(85, 170, 85)
+        debugPrint("Auto chest stopped!")
+        
+        if holdConnection then
+            holdConnection:Disconnect()
+            holdConnection = nil
+        end
+        
+        updateShowButtonStatus(false)
+        updateProgressBar(0)
+    end
+end)
+
+-- Hide UI Button
+gui.hideButton.MouseButton1Click:Connect(function()
+    hideUI()
+end)
+
+-- Show UI Button
+gui.showButton.MouseButton1Click:Connect(function()
+    showUI()
+end)
+
+-- Close Button
+gui.closeButton.MouseButton1Click:Connect(function()
+    gui.gui:Destroy()
+end)
+
+-- Keyboard Toggle (F key)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.F then
+        gui.toggleButton.MouseButton1Click()
+    elseif input.KeyCode == Enum.KeyCode.H then
+        -- H key to toggle hide/show UI
+        if gui.mainFrame.Visible then
+            hideUI()
+        else
+            showUI()
+        end
+    end
+end)
+
+-- Character Respawn Handler
+player.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+    humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+    debugPrint("Character respawned, updating references")
+end)
+
+-- Cleanup
+game:GetService("Players").PlayerRemoving:Connect(function(leavingPlayer)
+    if leavingPlayer == player then
+        if holdConnection then
+            holdConnection:Disconnect()
+        end
+    end
+end)
+
+debugPrint("World Of Stands Auto Chest script loaded!")
+debugPrint("Travel locations: " .. table.concat(TRAVEL_LOCATIONS, ", "))
+debugPrint("Controls:")
+debugPrint("  F - Toggle auto chest")
+debugPrint("  H - Hide/Show UI")
+debugPrint("  − button - Hide UI")
+debugPrint("  🗝️ button - Show UI")
+updateStatus("Ready", 0, "None", "Waiting...", "--")

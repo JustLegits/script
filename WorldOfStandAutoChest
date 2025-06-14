@@ -1,4 +1,4 @@
---|| - World Of Stands Auto Chest Script (With Hide/Show UI) - ||--
+--|| - World Of Stands Auto Chest Script (Full Updated) - ||--
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -21,10 +21,10 @@ local CONFIG = {
     areaChangeDelay = 10     -- Thời gian chờ trước khi đổi khu vực (giây)
 }
 
--- Travel Locations
+-- Travel Locations (Updated paths)
 local TRAVEL_LOCATIONS = {
-    "New York",
-    "Joestar Mansion"
+    "London",
+    "NewYork"
 }
 
 -- Variables
@@ -274,19 +274,31 @@ local function updateProgressBar(progress)
     tween:Play()
 end
 
--- Travel to Area
+-- Travel to Area (Updated for new paths)
 local function travelToArea(areaName)
     debugPrint("Traveling to area: " .. areaName)
+    debugPrint("Using path: workspace.London.ArenaTeleports." .. areaName)
     
-    local travelLocations = workspace:FindFirstChild("TravelLocations")
-    if not travelLocations then
-        debugPrint("TravelLocations not found!")
+    -- Navigate through the new path structure
+    local london = workspace:FindFirstChild("London")
+    if not london then
+        debugPrint("❌ London folder not found in workspace!")
         return false
     end
     
-    local targetArea = travelLocations:FindFirstChild(areaName)
+    local arenaTeleports = london:FindFirstChild("ArenaTeleports")
+    if not arenaTeleports then
+        debugPrint("❌ ArenaTeleports not found in London folder!")
+        return false
+    end
+    
+    local targetArea = arenaTeleports:FindFirstChild(areaName)
     if not targetArea then
-        debugPrint("Area not found: " .. areaName)
+        debugPrint("❌ Area not found: " .. areaName .. " in ArenaTeleports")
+        debugPrint("Available areas:")
+        for _, child in pairs(arenaTeleports:GetChildren()) do
+            debugPrint("  - " .. child.Name)
+        end
         return false
     end
     
@@ -302,7 +314,8 @@ local function travelToArea(areaName)
     end
     
     if not travelPosition then
-        debugPrint("Could not determine travel position for: " .. areaName)
+        debugPrint("❌ Could not determine travel position for: " .. areaName)
+        debugPrint("Target type: " .. targetArea.ClassName)
         return false
     end
     
@@ -310,7 +323,8 @@ local function travelToArea(areaName)
     local targetCFrame = CFrame.new(travelPosition + Vector3.new(0, 5, 0))
     humanoidRootPart.CFrame = targetCFrame
     
-    debugPrint("Teleported to: " .. areaName)
+    debugPrint("✅ Teleported to: " .. areaName)
+    debugPrint("📍 Position: " .. tostring(travelPosition))
     
     -- Wait for area to load
     wait(2)
@@ -683,7 +697,10 @@ game:GetService("Players").PlayerRemoving:Connect(function(leavingPlayer)
 end)
 
 debugPrint("World Of Stands Auto Chest script loaded!")
-debugPrint("Travel locations: " .. table.concat(TRAVEL_LOCATIONS, ", "))
+debugPrint("Updated travel paths:")
+for i, location in ipairs(TRAVEL_LOCATIONS) do
+    debugPrint("  " .. i .. ". workspace.London.ArenaTeleports." .. location)
+end
 debugPrint("Controls:")
 debugPrint("  F - Toggle auto chest")
 debugPrint("  H - Hide/Show UI")

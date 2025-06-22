@@ -1,0 +1,150 @@
+--[[ 
+  Executor Script: Draggable Shop UI with Toggle Button
+  - Creates a toggle button on the side of the screen
+  - When opened, shows a draggable panel with:
+      • Item Name TextBox
+      • RemoteFunction Name TextBox
+      • Number TextBox
+      • Execute Button
+  - Panel can be dragged anywhere
+--]]
+
+local Players           = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local player            = Players.LocalPlayer
+local playerGui         = player:WaitForChild("PlayerGui")
+
+-- Create ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ShopUI"
+screenGui.Parent = playerGui
+screenGui.ResetOnSpawn = false
+
+-- Create Toggle Button (side of screen)
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Name = "ToggleButton"
+toggleBtn.Text = "☰"
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 24
+toggleBtn.Size = UDim2.new(0, 40, 0, 40)
+toggleBtn.Position = UDim2.new(0, 5, 0.5, -20)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+toggleBtn.BorderSizePixel = 0
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Parent = screenGui
+
+-- Create Main Frame (initially hidden)
+local frame = Instance.new("Frame")
+frame.Name = "MainFrame"
+frame.Size = UDim2.new(0, 300, 0, 220)
+frame.Position = UDim2.new(0, 50, 0.4, -110)
+frame.BackgroundColor3 = Color3.fromRGB(28, 28, 30)
+frame.BorderSizePixel = 0
+frame.Visible = false
+frame.Parent = screenGui
+
+-- Helper: create TextBox
+local function newTextBox(name, placeholder, posY)
+    local tb = Instance.new("TextBox")
+    tb.Name = name
+    tb.PlaceholderText = placeholder
+    tb.Text = ""
+    tb.ClearTextOnFocus = false
+    tb.Size = UDim2.new(0, 260, 0, 30)
+    tb.Position = UDim2.new(0, 20, 0, posY)
+    tb.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    tb.BorderSizePixel = 0
+    tb.TextColor3 = Color3.fromRGB(225, 225, 225)
+    tb.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+    tb.Parent = frame
+    return tb
+end
+
+-- Create UI elements
+local itemBox   = newTextBox("ItemNameBox",  "Item Name (e.g. Spring Capsule)",       20)
+local eventBox  = newTextBox("EventNameBox", "RemoteFunction Name (e.g. SpringShop)",  60)
+local numberBox = newTextBox("NumberBox",    "Number (e.g. 1000)",                    100)
+
+-- Execute Button
+local execButton = Instance.new("TextButton")
+execButton.Name = "ExecuteButton"
+execButton.Text = "Thực thi"
+execButton.Size = UDim2.new(0, 260, 0, 40)
+execButton.Position = UDim2.new(0, 20, 0, 150)
+execButton.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
+execButton.BorderSizePixel = 0
+execButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+execButton.Font = Enum.Font.GothamBold
+execButton.TextScaled = true
+execButton.Parent = frame
+
+-- Toggle visibility
+toggleBtn.MouseButton1Click:Connect(function()
+    frame.Visible = not frame.Visible
+    toggleBtn.Text = frame.Visible and "×" or "☰"
+end)
+
+-- Drag logic
+local dragging, dragInput, dragStart, startPos
+local function updateDrag(input)
+    local delta = input.Position - dragStart
+    frame.Position = UDim2.new(
+        startPos.X.Scale, startPos.X.Offset + delta.X,
+        startPos.Y.Scale, startPos.Y.Offset + delta.Y
+    )
+end
+
+frame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = frame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+frame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if dragging and input == dragInput then
+        updateDrag(input)
+    end
+end)
+
+-- Helper: get RemoteFunction
+local function getRemote(funcName)
+    local container = ReplicatedStorage
+        :WaitForChild("EventsAndFunctions")
+        :WaitForChild("RemoteFunctions")
+    return container:WaitForChild(funcName)
+end
+
+-- Execute logic
+execButton.MouseButton1Click:Connect(function()
+    local itemName = (itemBox.Text or ""):match("%S") and itemBox.Text or ""
+    local funcName = (eventBox.Text or ""):match("%S") and eventBox.Text or ""
+    local num      = tonumber(numberBox.Text) or 0
+
+    if itemName == "" or funcName == "" then
+        warn("[ShopUI] Bạn phải nhập Item Name và RemoteFunction Name!")
+        return
+    end
+
+    local success, remote = pcall(getRemote, funcName)
+    if not success then
+        warn("[ShopUI] Không tìm thấy RemoteFunction:", funcName)
+        return
+    end
+
+    remote:InvokeServer(itemName, -num)
+    task.wait(0.5)
+    remote:InvokeServer(itemName, num)
+end)

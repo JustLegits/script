@@ -51,10 +51,10 @@ closeBtn.MouseButton1Click:Connect(function()
     controllerGui:Destroy()
 end)
 
--- Dropdown button
+-- Dropdown button (moved below X button)
 local dropdownBtn = Instance.new("TextButton", frame)
 dropdownBtn.Size = UDim2.new(1, -20, 0, dropdownH)
-dropdownBtn.Position = UDim2.new(0, 10, 0, 10)
+dropdownBtn.Position = UDim2.new(0, 10, 0, 34)  -- Y position below close button (5+24+5)
 dropdownBtn.Text = options[1]
 dropdownBtn.Font = Enum.Font.SourceSans
 dropdownBtn.TextSize = 24
@@ -65,7 +65,7 @@ dropdownBtn.BorderSizePixel = 0
 -- Scrollable options list
 local optsFrame = Instance.new("ScrollingFrame", frame)
 optsFrame.Size = UDim2.new(1, -20, 0, optsFrameH)
-optsFrame.Position = UDim2.new(0, 10, 0, 10 + dropdownH)
+optsFrame.Position = UDim2.new(0, 10, 0, 34 + dropdownH)  -- adjusted position
 optsFrame.CanvasSize = UDim2.new(0, 0, 0, optionsH)
 optsFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 optsFrame.BorderSizePixel = 0
@@ -96,7 +96,7 @@ end)
 
 -- Single Toggle button
 local toggleBtn = Instance.new("TextButton", frame)
-local btnY = 10 + dropdownH + optsFrameH + 10
+local btnY = 34 + dropdownH + optsFrameH + 10  -- updated base
 toggleBtn.Size = UDim2.new(1, -20, 0, buttonHeight)
 toggleBtn.Position = UDim2.new(0, 10, 0, btnY)
 toggleBtn.Text = "Toggle"
@@ -112,6 +112,6 @@ toggleBtn.MouseButton1Click:Connect(function()
     if target and target:IsA("ScreenGui") then
         target.Enabled = not target.Enabled
     else
-        warn("Không tìm thấy ScreenGui tên “.. name ..” trong PlayerGui")
+        warn("Không tìm thấy ScreenGui tên “" .. name .. "” trong PlayerGui")
     end
 end)

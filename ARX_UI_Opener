@@ -1,0 +1,11 @@
+-- Lấy đối tượng Items và UI
+local player = game:GetService("Players").LocalPlayer
+local itemsFolder = player:WaitForChild("PlayerGUI"):WaitForChild("Items")
+local screenGui = itemsFolder:FindFirstChild("MySimpleUI")
+
+if screenGui then
+    -- Toggle Enabled của ScreenGui
+    screenGui.Enabled = not screenGui.Enabled
+else
+    warn("Không tìm thấy MySimpleUI trong Items")
+end

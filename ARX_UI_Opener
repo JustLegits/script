@@ -1,9 +1,8 @@
---[[ local player   = game:GetService("Players").LocalPlayer
-local pg       = player:WaitForChild("PlayerGui")
-local itemsGui = pg:WaitForChild("Items")        -- đợi UI tên Items xuất hiện
-
--- Toggle trạng thái Enabled
-itemsGui.Enabled = not itemsGui.Enabled
+--[[
+    local player   = game:GetService("Players").LocalPlayer
+    local pg       = player:WaitForChild("PlayerGui")
+    local itemsGui = pg:WaitForChild("Items")
+    itemsGui.Enabled = not itemsGui.Enabled
 --]]
 
 -- LocalScript: Dropdown UI to select and toggle named ScreenGui under PlayerGui

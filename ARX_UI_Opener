@@ -5,7 +5,7 @@
     itemsGui.Enabled = not itemsGui.Enabled
 --]]
 
--- LocalScript: Dropdown with Scrollable Options and Toggle Button
+-- LocalScript: Dropdown with Scrollable Options, Toggle Button, and Close Button
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -22,7 +22,7 @@ local buttonHeight = 40
 
 -- Calculate overall frame size
 local frameW = 300
-local frameH = 10 + dropdownH + optsFrameH + 10 + buttonHeight + 10
+local frameH = 10 + dropdownH + optsFrameH + 10 + buttonHeight + 10 + 30  -- extra space for close button
 
 -- Create controller UI
 local controllerGui = Instance.new("ScreenGui")
@@ -36,6 +36,20 @@ frame.Position = UDim2.new(0.5, -frameW/2, 0.5, -frameH/2)
 frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 frame.BorderSizePixel = 0
 frame.AnchorPoint = Vector2.new(0.5, 0.5)
+
+-- Close (X) button
+local closeBtn = Instance.new("TextButton", frame)
+closeBtn.Size = UDim2.new(0, 24, 0, 24)
+closeBtn.Position = UDim2.new(1, -29, 0, 5)
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.TextSize = 18
+closeBtn.TextColor3 = Color3.new(1, 1, 1)
+closeBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+closeBtn.BorderSizePixel = 0
+closeBtn.MouseButton1Click:Connect(function()
+    controllerGui:Destroy()
+end)
 
 -- Dropdown button
 local dropdownBtn = Instance.new("TextButton", frame)
@@ -100,8 +114,4 @@ toggleBtn.MouseButton1Click:Connect(function()
     else
         warn("Không tìm thấy ScreenGui tên “.. name ..” trong PlayerGui")
     end
-end)
-
-toggleBtn.MouseButton1Click:Connect(function()
-    toggleGui(dropdownBtn.Text)
 end)

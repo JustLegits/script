@@ -6,7 +6,6 @@
 --]]
 
 -- LocalScript: Dropdown UI to select and toggle named ScreenGui under PlayerGui
-
 local Players = game:GetService("Players")
 local player  = Players.LocalPlayer
 local pg      = player:WaitForChild("PlayerGui")
@@ -71,41 +70,27 @@ dropdownBtn.MouseButton1Click:Connect(function()
     optsFrame.Visible = not optsFrame.Visible
 end)
 
--- Open & Close buttons
-local btnY = 10 + dropdownH + optionsH + 10
-local openBtn = Instance.new("TextButton", frame)
-openBtn.Size             = UDim2.new(0.5, -15, 0, 40)
-openBtn.Position         = UDim2.new(0, 10, 0, btnY)
-openBtn.Text             = "Open"
-openBtn.Font             = Enum.Font.SourceSans
-openBtn.TextSize         = 22
-openBtn.TextColor3       = Color3.new(1,1,1)
-openBtn.BackgroundColor3 = Color3.fromRGB(0,120,215)
-openBtn.BorderSizePixel  = 0
-
-local closeBtn = Instance.new("TextButton", frame)
-closeBtn.Size             = UDim2.new(0.5, -15, 0, 40)
-closeBtn.Position         = UDim2.new(0.5, 5, 0, btnY)
-closeBtn.Text             = "Close"
-closeBtn.Font             = Enum.Font.SourceSans
-closeBtn.TextSize         = 22
-closeBtn.TextColor3       = Color3.new(1,1,1)
-closeBtn.BackgroundColor3 = Color3.fromRGB(180,40,40)
-closeBtn.BorderSizePixel  = 0
+-- Toggle button
+local toggleBtn = Instance.new("TextButton", frame)
+toggleBtn.Size             = UDim2.new(1, -20, 0, 40)
+toggleBtn.Position         = UDim2.new(0, 10, 0, 10 + dropdownH + optionsH + 10)
+toggleBtn.Text             = "Toggle"
+toggleBtn.Font             = Enum.Font.SourceSans
+toggleBtn.TextSize         = 22
+toggleBtn.TextColor3       = Color3.new(1,1,1)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(0,120,215)
+toggleBtn.BorderSizePixel  = 0
 
 -- Toggle function
-local function setGuiEnabled(name, enabled)
+local function toggleGui(name)
     local gui = pg:FindFirstChild(name)
     if gui and gui:IsA("ScreenGui") then
-        gui.Enabled = enabled
+        gui.Enabled = not gui.Enabled
     else
-        warn("Không tìm thấy ScreenGui tên “".. name .."” trong PlayerGui")
+        warn("Không tìm thấy ScreenGui tên " .. name .. " trong PlayerGui")
     end
 end
 
-openBtn.MouseButton1Click:Connect(function()
-    setGuiEnabled(dropdownBtn.Text, true)
-end)
-closeBtn.MouseButton1Click:Connect(function()
-    setGuiEnabled(dropdownBtn.Text, false)
+toggleBtn.MouseButton1Click:Connect(function()
+    toggleGui(dropdownBtn.Text)
 end)

@@ -5,61 +5,71 @@
     itemsGui.Enabled = not itemsGui.Enabled
 --]]
 
--- LocalScript: Dropdown UI to select and toggle named ScreenGui under PlayerGui
+-- LocalScript: Dropdown with Scrollable Options and Toggle Button
+
 local Players = game:GetService("Players")
-local player  = Players.LocalPlayer
-local pg      = player:WaitForChild("PlayerGui")
+local player = Players.LocalPlayer
+local pg = player:WaitForChild("PlayerGui")
 
 -- Configuration
-local options       = {"Items", "Merchant", "BossAttack", "Collection", "Crafting", "Quest", "UnitsGacha"}
-local optionHeight  = 30
-local dropdownH     = 40
-local optionsH      = #options * optionHeight
-local frameW, frameH = 300, 50 + optionsH + 60
+local options = {"Items", "Merchant", "BossAttack", "Collection", "Crafting", "Quest", "UnitsGacha"}
+local optionHeight = 30
+local dropdownH = 40
+local maxListHeight = 200
+local optionsH = #options * optionHeight
+local optsFrameH = math.min(optionsH, maxListHeight)
+local buttonHeight = 40
+
+-- Calculate overall frame size
+local frameW = 300
+local frameH = 10 + dropdownH + optsFrameH + 10 + buttonHeight + 10
 
 -- Create controller UI
 local controllerGui = Instance.new("ScreenGui")
-controllerGui.Name          = "UIController"
-controllerGui.ResetOnSpawn  = false
-controllerGui.Parent        = pg
+controllerGui.Name = "UIController"
+controllerGui.ResetOnSpawn = false
+controllerGui.Parent = pg
 
 local frame = Instance.new("Frame", controllerGui)
-frame.Size             = UDim2.new(0, frameW, 0, frameH)
-frame.Position         = UDim2.new(0.5, -frameW/2, 0.5, -frameH/2)
+frame.Size = UDim2.new(0, frameW, 0, frameH)
+frame.Position = UDim2.new(0.5, -frameW/2, 0.5, -frameH/2)
 frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-frame.BorderSizePixel  = 0
-frame.AnchorPoint      = Vector2.new(0.5, 0.5)
+frame.BorderSizePixel = 0
+frame.AnchorPoint = Vector2.new(0.5, 0.5)
 
 -- Dropdown button
 local dropdownBtn = Instance.new("TextButton", frame)
-dropdownBtn.Size             = UDim2.new(1, -20, 0, dropdownH)
-dropdownBtn.Position         = UDim2.new(0, 10, 0, 10)
-dropdownBtn.Text             = options[1]
-dropdownBtn.Font             = Enum.Font.SourceSans
-dropdownBtn.TextSize         = 24
-dropdownBtn.TextColor3       = Color3.new(1,1,1)
-dropdownBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
-dropdownBtn.BorderSizePixel  = 0
+dropdownBtn.Size = UDim2.new(1, -20, 0, dropdownH)
+dropdownBtn.Position = UDim2.new(0, 10, 0, 10)
+dropdownBtn.Text = options[1]
+dropdownBtn.Font = Enum.Font.SourceSans
+dropdownBtn.TextSize = 24
+dropdownBtn.TextColor3 = Color3.new(1, 1, 1)
+dropdownBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+dropdownBtn.BorderSizePixel = 0
 
--- Options list (initially hidden)
-local optsFrame = Instance.new("Frame", frame)
-optsFrame.Size             = UDim2.new(1, -20, 0, optionsH)
-optsFrame.Position         = UDim2.new(0, 10, 0, 10 + dropdownH)
-optsFrame.BackgroundColor3 = Color3.fromRGB(50,50,50)
-optsFrame.BorderSizePixel  = 0
-optsFrame.Visible          = false
-optsFrame.ClipsDescendants = true
+-- Scrollable options list
+local optsFrame = Instance.new("ScrollingFrame", frame)
+optsFrame.Size = UDim2.new(1, -20, 0, optsFrameH)
+optsFrame.Position = UDim2.new(0, 10, 0, 10 + dropdownH)
+optsFrame.CanvasSize = UDim2.new(0, 0, 0, optionsH)
+optsFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+optsFrame.BorderSizePixel = 0
+optsFrame.Visible = false
+
+local layout = Instance.new("UIListLayout", optsFrame)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
 
 for i, name in ipairs(options) do
     local btn = Instance.new("TextButton", optsFrame)
-    btn.Size             = UDim2.new(1, 0, 0, optionHeight)
-    btn.Position         = UDim2.new(0, 0, 0, (i-1) * optionHeight)
-    btn.Text             = name
-    btn.Font             = Enum.Font.SourceSans
-    btn.TextSize         = 20
-    btn.TextColor3       = Color3.new(1,1,1)
-    btn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    btn.BorderSizePixel  = 0
+    btn.Size = UDim2.new(1, 0, 0, optionHeight)
+    btn.LayoutOrder = i
+    btn.Text = name
+    btn.Font = Enum.Font.SourceSans
+    btn.TextSize = 20
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    btn.BorderSizePixel = 0
     btn.MouseButton1Click:Connect(function()
         dropdownBtn.Text = name
         optsFrame.Visible = false
@@ -70,26 +80,27 @@ dropdownBtn.MouseButton1Click:Connect(function()
     optsFrame.Visible = not optsFrame.Visible
 end)
 
--- Toggle button
+-- Single Toggle button
 local toggleBtn = Instance.new("TextButton", frame)
-toggleBtn.Size             = UDim2.new(1, -20, 0, 40)
-toggleBtn.Position         = UDim2.new(0, 10, 0, 10 + dropdownH + optionsH + 10)
-toggleBtn.Text             = "Toggle"
-toggleBtn.Font             = Enum.Font.SourceSans
-toggleBtn.TextSize         = 22
-toggleBtn.TextColor3       = Color3.new(1,1,1)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(0,120,215)
-toggleBtn.BorderSizePixel  = 0
+local btnY = 10 + dropdownH + optsFrameH + 10
+toggleBtn.Size = UDim2.new(1, -20, 0, buttonHeight)
+toggleBtn.Position = UDim2.new(0, 10, 0, btnY)
+toggleBtn.Text = "Toggle"
+toggleBtn.Font = Enum.Font.SourceSans
+toggleBtn.TextSize = 22
+toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+toggleBtn.BorderSizePixel = 0
 
--- Toggle function
-local function toggleGui(name)
-    local gui = pg:FindFirstChild(name)
-    if gui and gui:IsA("ScreenGui") then
-        gui.Enabled = not gui.Enabled
+toggleBtn.MouseButton1Click:Connect(function()
+    local name = dropdownBtn.Text
+    local target = pg:FindFirstChild(name)
+    if target and target:IsA("ScreenGui") then
+        target.Enabled = not target.Enabled
     else
-        warn("Không tìm thấy ScreenGui tên " .. name .. " trong PlayerGui")
+        warn("Không tìm thấy ScreenGui tên “.. name ..” trong PlayerGui")
     end
-end
+end)
 
 toggleBtn.MouseButton1Click:Connect(function()
     toggleGui(dropdownBtn.Text)

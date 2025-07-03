@@ -4,7 +4,7 @@ local itemsGui = pg:WaitForChild("Items")        -- đợi UI tên Items xuất 
 
 -- Toggle trạng thái Enabled
 itemsGui.Enabled = not itemsGui.Enabled
-]]--
+--]]
 
 -- LocalScript: Dropdown UI to select and toggle named ScreenGui under PlayerGui
 

@@ -1,3 +1,5 @@
+loadstring(game:HttpGet("https://raw.githubusercontent.com/JustLegits/miscscript/refs/heads/main/arxgps"))()
+
 -- LocalScript: Dropdown with Scrollable Options and Action Button, plus Persistent Controller Toggle Button
 
 local Players = game:GetService("Players")
@@ -5,7 +7,7 @@ local player = Players.LocalPlayer
 local pg = player:WaitForChild("PlayerGui")
 
 -- Configuration
-local options = {"Items", "Merchant", "PlayRoom", "BossAttack", "Collection", "Crafting", "ApplyCurse", "LimitBreaks", "Quest", "UnitsGacha", "UnitsEvolve", "SummerEvent", "SummerShop", "Code", "BattlePass", "Trade"}
+local options = {"Items", "Merchant", "PlayRoom", "BossAttack", "Collection", "Crafting", "ApplyCurse", "LimitBreaks", "Quest", "UnitsGacha", "UnitsEvolve", "SummerShop", "Code", "BattlePass", "Trade"}
 local optionHeight = 30
 local dropdownH = 40
 local maxListHeight = 200

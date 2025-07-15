@@ -1,0 +1,129 @@
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local pg = player:WaitForChild("PlayerGui")
+
+-- Lấy danh sách các ScreenGui hiện có trong PlayerGui (trừ UIController)
+local options = {}
+for _, gui in ipairs(pg:GetChildren()) do
+    if gui:IsA("ScreenGui") and gui.Name ~= "UIController" then
+        table.insert(options, gui.Name)
+    end
+end
+
+-- Nếu không có option nào thì thêm mặc định
+if #options == 0 then
+    table.insert(options, "NoGUIFound")
+end
+
+-- Cấu hình hiển thị
+local optionHeight = 30
+local dropdownH    = 40
+local maxListHeight = 200
+local optionsH     = #options * optionHeight
+local listHeight   = math.min(optionsH, maxListHeight)
+
+-- Tạo ScreenGui điều khiển
+local controllerGui = Instance.new("ScreenGui")
+controllerGui.Name = "UIController"
+controllerGui.ResetOnSpawn = false
+controllerGui.Parent = pg
+
+-- Nút bật/tắt luôn hiện
+local toggleBtn = Instance.new("TextButton", controllerGui)
+toggleBtn.Name = "ToggleControllerUI"
+toggleBtn.Size = UDim2.new(0, 100, 0, 40)
+toggleBtn.Position = UDim2.new(0, 10, 0, 10)
+toggleBtn.AnchorPoint = Vector2.new(0, 0)
+toggleBtn.Text = "Hide UI"
+toggleBtn.Font = Enum.Font.SourceSans
+toggleBtn.TextSize = 22
+toggleBtn.TextColor3 = Color3.new(1,1,1)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(180,40,40)
+toggleBtn.BorderSizePixel = 0
+
+toggleBtn.MouseButton1Click:Connect(function()
+    local cont = controllerGui:FindFirstChild("Container")
+    if cont then
+        cont.Visible = not cont.Visible
+        toggleBtn.Text = cont.Visible and "Hide UI" or "Show UI"
+    end
+end)
+
+-- Frame chứa dropdown và action button
+local container = Instance.new("Frame", controllerGui)
+container.Name = "Container"
+container.Size = UDim2.new(0, 300, 0, dropdownH + listHeight + 60)
+container.Position = UDim2.new(0.5, -150, 0.5, -(dropdownH + listHeight + 60)/2)
+container.AnchorPoint = Vector2.new(0.5, 0.5)
+container.BackgroundColor3 = Color3.fromRGB(40,40,40)
+container.BorderSizePixel = 0
+container.Visible = true
+
+-- Dropdown button
+local dropdownBtn = Instance.new("TextButton", container)
+dropdownBtn.Name = "DropdownBtn"
+dropdownBtn.Size = UDim2.new(1, -20, 0, dropdownH)
+dropdownBtn.Position = UDim2.new(0, 10, 0, 10)
+dropdownBtn.Text = options[1]
+dropdownBtn.Font = Enum.Font.SourceSans
+dropdownBtn.TextSize = 24
+dropdownBtn.TextColor3 = Color3.new(1,1,1)
+dropdownBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+dropdownBtn.BorderSizePixel = 0
+
+-- ScrollFrame chứa danh sách options
+local scroll = Instance.new("ScrollingFrame", container)
+scroll.Name = "OptionsList"
+scroll.Size = UDim2.new(1, -20, 0, listHeight)
+scroll.Position = UDim2.new(0, 10, 0, 10 + dropdownH)
+scroll.CanvasSize = UDim2.new(0, 0, 0, optionsH)
+scroll.BackgroundColor3 = Color3.fromRGB(50,50,50)
+scroll.BorderSizePixel = 0
+scroll.Visible = false
+
+local layout = Instance.new("UIListLayout", scroll)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- Tạo nút cho từng option
+for i, name in ipairs(options) do
+    local btn = Instance.new("TextButton", scroll)
+    btn.Size = UDim2.new(1, 0, 0, optionHeight)
+    btn.LayoutOrder = i
+    btn.Text = name
+    btn.Font = Enum.Font.SourceSans
+    btn.TextSize = 20
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    btn.BorderSizePixel = 0
+    btn.MouseButton1Click:Connect(function()
+        dropdownBtn.Text = name
+        scroll.Visible = false
+    end)
+end
+
+-- Bật/tắt hiển thị danh sách khi click dropdown
+dropdownBtn.MouseButton1Click:Connect(function()
+    scroll.Visible = not scroll.Visible
+end)
+
+-- Action button: bật/tắt ScreenGui được chọn
+local actionBtn = Instance.new("TextButton", container)
+actionBtn.Name = "ToggleTargetUI"
+actionBtn.Size = UDim2.new(1, -20, 0, 40)
+actionBtn.Position = UDim2.new(0, 10, 0, 10 + dropdownH + listHeight + 10)
+actionBtn.Text = "Toggle UI"
+actionBtn.Font = Enum.Font.SourceSans
+actionBtn.TextSize = 22
+actionBtn.TextColor3 = Color3.new(1,1,1)
+actionBtn.BackgroundColor3 = Color3.fromRGB(0,120,215)
+actionBtn.BorderSizePixel = 0
+
+actionBtn.MouseButton1Click:Connect(function()
+    local name = dropdownBtn.Text
+    local gui = pg:FindFirstChild(name)
+    if gui and gui:IsA("ScreenGui") then
+        gui.Enabled = not gui.Enabled
+    else
+        warn("Không tìm thấy ScreenGui tên ‘" .. name .. "’ trong PlayerGui")
+    end
+end)

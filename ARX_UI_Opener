@@ -7,7 +7,7 @@ local player = Players.LocalPlayer
 local pg = player:WaitForChild("PlayerGui")
 
 -- Configuration
-local options = {"Items", "Merchant", "PlayRoom", "BossAttack", "Collection", "Crafting", "ApplyCurse", "LimitBreaks", "Quest", "UnitsGacha", "UnitsEvolve", "SummerShop", "Code", "BattlePass", "BossRush"}
+local options = {"Items", "Merchant", "PlayRoom", "BossAttack", "Collection", "Crafting", "ApplyCurse", "LimitBreaks", "Quest", "UnitsGacha", "UnitsEvolve", "SummerShop", "Code", "BattlePass", "BossRush", "SoulCraft"}
 local optionHeight = 30
 local dropdownH = 40
 local maxListHeight = 200

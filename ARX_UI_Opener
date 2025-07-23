@@ -1,18 +1,22 @@
-loadstring(game:HttpGet("https://raw.githubusercontent.com/JustLegits/miscscript/refs/heads/main/arxgps"))()
-
 -- LocalScript: Dropdown with Scrollable Options and Action Button, plus Persistent Controller Toggle Button
 
+-- Remove existing UIController to reload fresh
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local pg = player:WaitForChild("PlayerGui")
+local oldGui = pg:FindFirstChild("UIController")
+if oldGui then oldGui:Destroy() end
+
+-- Camera for responsive scale
+local cam = workspace.CurrentCamera
 
 -- Configuration
-local options = {"Items", "Merchant", "PlayRoom", "BossAttack", "Collection", "Crafting", "ApplyCurse", "LimitBreaks", "Quest", "UnitsGacha", "UnitsEvolve", "SummerShop", "Code", "BattlePass", "BossRush", "SoulCraft"}
-local optionHeight = 30
-local dropdownH = 40
-local maxListHeight = 200
-local optionsH = #options * optionHeight
-local listHeight = math.min(optionsH, maxListHeight)
+local options = {"Items","Merchant","PlayRoom","BossAttack","Collection","Crafting","Quest","UnitsGacha","UnitsEvolve","SummerShop","Code","BattlePass","BossRush","SoulCraft","Raid_Shop","ApplyCurse","LimitBreaks"}
+local optionHeight   = 30
+local dropdownH      = 40
+local maxListHeight  = 200
+local optionsH       = #options * optionHeight
+local listHeight     = math.min(optionsH, maxListHeight)
 
 -- Create ScreenGui
 local controllerGui = Instance.new("ScreenGui")
@@ -20,17 +24,17 @@ controllerGui.Name = "UIController"
 controllerGui.ResetOnSpawn = false
 controllerGui.Parent = pg
 
--- Create persistent toggle button (always visible)
+-- Persistent toggle button (always visible)
 local toggleBtn = Instance.new("TextButton", controllerGui)
-toggleBtn.Name = "ToggleControllerUI"
-toggleBtn.Size = UDim2.new(0, 100, 0, 40)
-toggleBtn.Position = UDim2.new(0, 10, 0, 10)
-toggleBtn.AnchorPoint = Vector2.new(0, 0)
-toggleBtn.Text = "Hide UI"
-toggleBtn.Font = Enum.Font.SourceSans
-toggleBtn.TextSize = 22
-toggleBtn.TextColor3 = Color3.new(1, 1, 1)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+toggleBtn.Name            = "ToggleControllerUI"
+toggleBtn.Size            = UDim2.new(0, 80, 0, 32) -- 20% smaller
+toggleBtn.Position        = UDim2.new(0, 10, 0, 10)
+toggleBtn.AnchorPoint     = Vector2.new(0, 0)
+toggleBtn.Text            = "Hide UI"
+toggleBtn.Font            = Enum.Font.SourceSans
+toggleBtn.TextSize        = 22
+toggleBtn.TextColor3      = Color3.new(1, 1, 1)
+toggleBtn.BackgroundColor3= Color3.fromRGB(180, 40, 40)
 toggleBtn.BorderSizePixel = 0
 
 toggleBtn.MouseButton1Click:Connect(function()
@@ -41,78 +45,90 @@ toggleBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Create main container frame (hidden/shown by toggleBtn)
+-- Main container frame (hidden/shown by toggleBtn)
 local container = Instance.new("Frame", controllerGui)
-container.Name = "Container"
-container.Size = UDim2.new(0, 300, 0, dropdownH + listHeight + 60)
-container.Position = UDim2.new(0.5, -150, 0.5, -(dropdownH + listHeight + 60)/2)
-container.AnchorPoint = Vector2.new(0.5, 0.5)
-container.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+container.Name            = "Container"
+container.AnchorPoint     = Vector2.new(0, 0) -- top-left
+-- Position moved down by toggleBtn height + margin (10 + 32 + 10 = 52)
+container.Position        = UDim2.new(0, 10, 0, 52)
+-- double width & height
+container.Size            = UDim2.new(0, 600, 0, (dropdownH + listHeight + 60) * 2)
+container.BackgroundColor3= Color3.fromRGB(40, 40, 40)
 container.BorderSizePixel = 0
-container.Visible = true
+container.Visible         = true
+
+-- Add UIScale for responsive resizing
+local uiScale = Instance.new("UIScale")
+uiScale.Parent = container
+local designW, designH = 1920, 1080
+cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+    local vw, vh = cam.ViewportSize.X, cam.ViewportSize.Y
+    uiScale.Scale = math.min(vw/designW, vh/designH)
+end)
+uiScale.Scale = math.min(cam.ViewportSize.X/designW, cam.ViewportSize.Y/designH)
 
 -- Dropdown button
 local dropdownBtn = Instance.new("TextButton", container)
-dropdownBtn.Name = "DropdownBtn"
-dropdownBtn.Size = UDim2.new(1, -20, 0, dropdownH)
-dropdownBtn.Position = UDim2.new(0, 10, 0, 10)
-dropdownBtn.Text = options[1]
-dropdownBtn.Font = Enum.Font.SourceSans
-dropdownBtn.TextSize = 24
-dropdownBtn.TextColor3 = Color3.new(1, 1, 1)
-dropdownBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+dropdownBtn.Name            = "DropdownBtn"
+dropdownBtn.Size            = UDim2.new(1, -20, 0, dropdownH * 2)
+dropdownBtn.Position        = UDim2.new(0, 10, 0, 10)
+dropdownBtn.Text            = options[1]
+dropdownBtn.Font            = Enum.Font.SourceSans
+dropdownBtn.TextSize        = 24
+dropdownBtn.TextColor3      = Color3.new(1, 1, 1)
+dropdownBtn.BackgroundColor3= Color3.fromRGB(60, 60, 60)
 dropdownBtn.BorderSizePixel = 0
+
+dropdownBtn.MouseButton1Click:Connect(function()
+    local list = container:FindFirstChild("OptionsList")
+    list.Visible = not list.Visible
+end)
 
 -- Scrollable options list
 local scroll = Instance.new("ScrollingFrame", container)
-scroll.Name = "OptionsList"
-scroll.Size = UDim2.new(1, -20, 0, listHeight)
-scroll.Position = UDim2.new(0, 10, 0, 10 + dropdownH)
-scroll.CanvasSize = UDim2.new(0, 0, 0, optionsH)
-scroll.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+scroll.Name            = "OptionsList"
+scroll.Size            = UDim2.new(1, -20, 0, listHeight * 2)
+scroll.Position        = UDim2.new(0, 10, 0, 10 + dropdownH * 2)
+scroll.CanvasSize      = UDim2.new(0, 0, 0, optionsH * 2)
+scroll.BackgroundColor3= Color3.fromRGB(50, 50, 50)
 scroll.BorderSizePixel = 0
+scroll.Visible         = false
 
 local layout = Instance.new("UIListLayout", scroll)
 layout.SortOrder = Enum.SortOrder.LayoutOrder
 
 for i, name in ipairs(options) do
     local btn = Instance.new("TextButton", scroll)
-    btn.Size = UDim2.new(1, 0, 0, optionHeight)
-    btn.LayoutOrder = i
-    btn.Text = name
-    btn.Font = Enum.Font.SourceSans
-    btn.TextSize = 20
-    btn.TextColor3 = Color3.new(1, 1, 1)
-    btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    btn.Size            = UDim2.new(1, 0, 0, optionHeight * 2)
+    btn.LayoutOrder     = i
+    btn.Text            = name
+    btn.Font            = Enum.Font.SourceSans
+    btn.TextSize        = 20
+    btn.TextColor3      = Color3.new(1, 1, 1)
+    btn.BackgroundColor3= Color3.fromRGB(70, 70, 70)
     btn.BorderSizePixel = 0
     btn.MouseButton1Click:Connect(function()
         dropdownBtn.Text = name
-        scroll.Visible = false
+        scroll.Visible   = false
     end)
 end
 
-dropdownBtn.MouseButton1Click:Connect(function()
-    scroll.Visible = not scroll.Visible
-end)
-
 -- Action button to toggle selected ScreenGui
 local actionBtn = Instance.new("TextButton", container)
-actionBtn.Name = "ToggleTargetUI"
-actionBtn.Size = UDim2.new(1, -20, 0, 40)
-actionBtn.Position = UDim2.new(0, 10, 0, 10 + dropdownH + listHeight + 10)
-actionBtn.Text = "Toggle UI"
-actionBtn.Font = Enum.Font.SourceSans
-actionBtn.TextSize = 22
-actionBtn.TextColor3 = Color3.new(1, 1, 1)
-actionBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+actionBtn.Name            = "ToggleTargetUI"
+actionBtn.Size            = UDim2.new(1, -20, 0, 40 * 2)
+actionBtn.Position        = UDim2.new(0, 10, 0, 10 + dropdownH * 2 + listHeight * 2 + 10)
+actionBtn.Text            = "Toggle UI"
+actionBtn.Font            = Enum.Font.SourceSans
+actionBtn.TextSize        = 22
+actionBtn.TextColor3      = Color3.new(1, 1, 1)
+actionBtn.BackgroundColor3= Color3.fromRGB(0, 120, 215)
 actionBtn.BorderSizePixel = 0
-
 actionBtn.MouseButton1Click:Connect(function()
-    local name = dropdownBtn.Text
-    local gui = pg:FindFirstChild(name)
+    local gui = pg:FindFirstChild(dropdownBtn.Text)
     if gui and gui:IsA("ScreenGui") then
         gui.Enabled = not gui.Enabled
     else
-        warn("Không tìm thấy ScreenGui tên ‘" .. name .. "’ trong PlayerGui")
+        warn("Không tìm thấy ScreenGui tên ‘" .. dropdownBtn.Text .. "’ trong PlayerGui")
     end
 end)

@@ -11,7 +11,7 @@ if oldGui then oldGui:Destroy() end
 local cam = workspace.CurrentCamera
 
 -- Configuration
-local options = {"Items","Merchant","PlayRoom","BossAttack","Collection","Crafting","Quest","UnitsGacha","UnitsEvolve","SummerShop","Code","BattlePass","BossRush","SoulCraft","Raid_Shop","ApplyCurse","LimitBreaks"}
+local options = {"Items","Merchant","PlayRoom","BossAttack","Collection","Crafting","Quest","UnitsGacha","UnitsEvolve","SummerEvent","SummerShop","Code","BattlePass","BossRush","SoulCraft","Raid_Shop","ApplyCurse","LimitBreaks"}
 local optionHeight   = 30
 local dropdownH      = 40
 local maxListHeight  = 200

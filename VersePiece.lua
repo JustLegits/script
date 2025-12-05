@@ -464,7 +464,7 @@ RunService.Heartbeat:Connect(function()
                                 VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
                                 task.wait(0.1)
                                 VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-                                task.wait(1.5)
+                                task.wait(3)
                                 return
                             end
                         end

@@ -1,3 +1,18 @@
+--// --- CLEANUP OLD UI--- //--
+pcall(function()
+    local CoreGui = game:GetService("CoreGui")
+    local PlayerGui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+    
+    -- Xóa nút Toggle cũ
+    if CoreGui:FindFirstChild("WindUI_Toggle") then CoreGui.WindUI_Toggle:Destroy() end
+    if PlayerGui and PlayerGui:FindFirstChild("WindUI_Toggle") then PlayerGui.WindUI_Toggle:Destroy() end
+    
+    -- Xóa WindUI cũ (nếu có tên mặc định)
+    for _, v in pairs(CoreGui:GetChildren()) do
+        if v.Name == "WindUI" then v:Destroy() end
+    end
+end)
+--// ------------------------------------------------ //--
 local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
 
 --// Services
@@ -23,7 +38,7 @@ local ActiveTarget = nil -- Global target variable for skill loop
 --// Settings
 local SelectedWeaponName = nil
 local FarmingPosition = "Top"
-local FarmingDistance = 7
+local FarmingDistance = 8
 local SelectedAbilities = {}
 local TargetPriorityList = {}
 local BossPriorityList = {}
@@ -345,7 +360,7 @@ task.spawn(function()
                     if not ActiveTarget or ActiveTarget.Humanoid.Health <= 0 then break end
                     
                     pressKey(key)
-                    task.wait(0.8) -- Delay between skills
+                    task.wait(1) -- Delay between skills
                 end
             end
         end
@@ -408,7 +423,7 @@ task.spawn(function()
             end
         else
             ActiveTarget = nil
-            task.wait(0.5) 
+            task.wait(1) 
         end
     end
 end)

@@ -6,8 +6,9 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local UserInputService = game:GetService("UserInputService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ProximityPromptService = game:GetService("ProximityPromptService")
 local TextChatService = game:GetService("TextChatService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 --// Local Player
 local LocalPlayer = Players.LocalPlayer
@@ -17,8 +18,7 @@ local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local IsFarming = false
 local IsBossFarming = false
 local IsDungeonFarming = false
-local CurrentTarget = nil
-local DungeonTarget = nil
+local ActiveTarget = nil -- Global target variable for skill loop
 
 --// Settings
 local SelectedWeaponName = nil
@@ -43,23 +43,45 @@ local function pressKey(keyName)
     end
 end
 
--- Send Chat Message (Supports Legacy and TextChatService)
 local function sendChat(msg)
-    -- Method 1: Legacy Chat (Most common for commands like !code)
-    local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-    local sayMessage = chatEvents and chatEvents:FindFirstChild("SayMessageRequest")
-    if sayMessage then
-        sayMessage:FireServer(msg, "All")
-        return
-    end
-
-    -- Method 2: TextChatService (Newer games)
     if TextChatService.ChatInputBarConfiguration.TargetTextChannel then
         TextChatService.ChatInputBarConfiguration.TargetTextChannel:SendAsync(msg)
+    elseif ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") then
+        ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(msg, "All")
     end
 end
 
--- Draggable Button Logic
+-- Equip Weapon (Updated for "None")
+local function EquipWeapon()
+    if not Character or not Character:FindFirstChild("Humanoid") then return end
+    
+    if SelectedWeaponName == "None" then
+        Character.Humanoid:UnequipTools()
+        return
+    end
+
+    if SelectedWeaponName then
+        local Tool = Character:FindFirstChild(SelectedWeaponName)
+        if not Tool then
+            local Backpack = LocalPlayer:FindFirstChild("Backpack")
+            if Backpack and Backpack:FindFirstChild(SelectedWeaponName) then
+                Character.Humanoid:EquipTool(Backpack[SelectedWeaponName])
+            end
+        end
+    end
+end
+
+-- M1 Attack Only (Fast)
+local function AttackM1()
+    if SelectedWeaponName and SelectedWeaponName ~= "None" and Character then
+        local Tool = Character:FindFirstChild(SelectedWeaponName)
+        if Tool then
+            Tool:Activate()
+        end
+    end
+end
+
+-- Draggable
 local function MakeDraggable(frame)
     local dragging, dragInput, dragStart, startPos
     local function update(input)
@@ -101,9 +123,9 @@ local function getMobs()
     return mobs
 end
 
--- Get Weapons
+-- Get Weapons (Adds "None" option)
 local function getWeapons()
-    local tools = {}
+    local tools = {"None"}
     local seen = {}
     local function add(list)
         for _, item in pairs(list) do
@@ -115,17 +137,16 @@ local function getWeapons()
     end
     if LocalPlayer:FindFirstChild("Backpack") then add(LocalPlayer.Backpack:GetChildren()) end
     if LocalPlayer.Character then add(LocalPlayer.Character:GetChildren()) end
-    table.sort(tools)
     return tools
 end
 
 --// --- UI SETUP --- //--
 
 local Window = WindUI:CreateWindow({
-    Title = "Auto Farm + Codes | v8",
+    Title = "Auto Farm | Select Fix v12",
     Icon = "sword",
     Author = ".ftgs",
-    Folder = "WindUI_Codes_v8",
+    Folder = "WindUI_SelectFix_v12",
     Size = UDim2.fromOffset(580, 480),
     Transparent = true,
     Theme = "Dark",
@@ -138,393 +159,256 @@ local BossTab = Window:Tab({ Title = "Boss Farm", Icon = "crown" })
 local DungeonTab = Window:Tab({ Title = "Dungeon", Icon = "castle" })
 local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings" })
 
---// --- AUTO FARM TAB --- //--
+--// --- UI ELEMENTS --- //--
 
+-- Farm Tab
 local TargetSection = FarmTab:Section({ Title = "Normal Targets" })
-
 local MobDropdown = TargetSection:Dropdown({
-    Title = "Select Mobs",
-    Desc = "Normal Farm Only.",
-    Multi = true,
-    Values = getMobs(),
-    Value = {},
-    Flag = "MobList",
+    Title = "Select Mobs", Desc = "Normal Farm Only.", Multi = true, Values = getMobs(), Value = {}, Flag = "MobList",
     Callback = function(val) TargetPriorityList = val end
 })
 
-TargetSection:Button({
-    Title = "Refresh Mobs",
-    Icon = "refresh-cw",
-    Callback = function() MobDropdown:Refresh(getMobs()) end
-})
+-- Clear & Refresh Buttons
+local MobBtnGroup = TargetSection:Group({Orientation = "Horizontal"})
+MobBtnGroup:Button({ Title = "Refresh Mobs", Icon = "refresh-cw", Callback = function() MobDropdown:Refresh(getMobs(), TargetPriorityList) end })
+MobBtnGroup:Button({ Title = "Clear Selection", Icon = "trash", Callback = function() 
+    TargetPriorityList = {}
+    MobDropdown:Refresh(getMobs(), {}) -- Resets selection
+end })
 
 FarmTab:Section({ Title = "Control" })
-
 FarmTab:Toggle({
-    Title = "Enable Auto Farm",
-    Flag = "AutoFarm",
-    Callback = function(val)
-        IsFarming = val
-        if val then IsBossFarming = false; IsDungeonFarming = false end
-        if not val then
-            CurrentTarget = nil
-            if Character and Character:FindFirstChild("HumanoidRootPart") then
-                Character.HumanoidRootPart.Velocity = Vector3.new(0,0,0)
-            end
-        end
-    end
+    Title = "Enable Auto Farm", Flag = "AutoFarm",
+    Callback = function(val) IsFarming = val; if val then IsBossFarming = false; IsDungeonFarming = false end end
 })
 
---// --- BOSS FARM TAB --- //--
-
+-- Boss Tab
 local BossSection = BossTab:Section({ Title = "Boss Selection" })
-
 local BossList = {"Benimaru", "Arthur Boyle", "Shinra", "Joker"}
 local ScannedMobs = getMobs()
-for _, mob in ipairs(ScannedMobs) do
-    if not table.find(BossList, mob) then table.insert(BossList, mob) end
-end
+for _, mob in ipairs(ScannedMobs) do if not table.find(BossList, mob) then table.insert(BossList, mob) end end
 
 local BossDropdown = BossSection:Dropdown({
-    Title = "Select Bosses",
-    Desc = "Prioritizes Bottom to Top.",
-    Multi = true,
-    Values = BossList,
-    Value = {},
-    Flag = "BossList",
+    Title = "Select Bosses", Desc = "Prioritizes Bottom to Top.", Multi = true, Values = BossList, Value = {}, Flag = "BossList",
     Callback = function(val) BossPriorityList = val end
 })
 
+-- Clear Button for Bosses
+BossSection:Button({ Title = "Clear Selection", Icon = "trash", Callback = function() 
+    BossPriorityList = {}
+    BossDropdown:Refresh(BossList, {}) 
+end })
+
 BossTab:Section({ Title = "Control" })
-
 BossTab:Toggle({
-    Title = "Enable Boss Farm",
-    Flag = "BossFarm",
-    Callback = function(val)
-        IsBossFarming = val
-        if val then IsFarming = false; IsDungeonFarming = false end
-        if not val then CurrentTarget = nil end
-    end
+    Title = "Enable Boss Farm", Flag = "BossFarm",
+    Callback = function(val) IsBossFarming = val; if val then IsFarming = false; IsDungeonFarming = false end end
 })
 
---// --- DUNGEON TAB --- //--
-
-local DungeonStatus = DungeonTab:Section({ Title = "Status" })
-local StatusLabel = DungeonStatus:Paragraph({ Title = "State", Desc = "Idle" })
-
+-- Dungeon Tab
 local DungeonControl = DungeonTab:Section({ Title = "Dungeon Controls" })
-
 DungeonControl:Toggle({
-    Title = "Auto Farm Dungeon",
-    Desc = "Farms EVERYTHING in Workspace.Main",
-    Flag = "DungeonFarm",
-    Callback = function(val)
-        IsDungeonFarming = val
-        if val then IsFarming = false; IsBossFarming = false end
-        if not val then 
-            DungeonTarget = nil
-            StatusLabel:SetTitle("State: Idle")
-        else
-            StatusLabel:SetTitle("State: Scanning...")
-        end
-    end
+    Title = "Auto Farm Dungeon", Desc = "Farms EVERYTHING in Workspace.Main", Flag = "DungeonFarm",
+    Callback = function(val) IsDungeonFarming = val; if val then IsFarming = false; IsBossFarming = false end end
 })
 
---// --- SETTINGS TAB --- //--
-
+-- Settings Tab
 local GeneralSection = SettingsTab:Section({ Title = "General" })
-
--- [ NEW FEATURE ] Redeem Codes Button
 GeneralSection:Button({
-    Title = "Redeem All Codes",
-    Desc = "Scans CodeData and redeems unclaim codes.",
-    Icon = "ticket",
+    Title = "Redeem All Codes", Desc = "Scans CodeData.", Icon = "ticket",
     Callback = function()
         local codeData = LocalPlayer:FindFirstChild("CodeData")
-        if not codeData then
-            WindUI:Notify({ Title = "Error", Content = "CodeData folder not found!", Duration = 3 })
-            return
-        end
-        
+        if not codeData then return end
         local count = 0
         for _, item in pairs(codeData:GetChildren()) do
             if item:IsA("BoolValue") and item.Value == false then
-                local codeName = item.Name
-                -- Send Code to Chat
-                sendChat("!code " .. codeName)
+                sendChat("!code " .. item.Name)
                 count = count + 1
-                task.wait(0.5) -- Delay to prevent kick/spam filter
+                task.wait(0.5)
             end
         end
-        
-        if count > 0 then
-            WindUI:Notify({ Title = "Success", Content = "Sent " .. count .. " codes to chat.", Duration = 4 })
-        else
-            WindUI:Notify({ Title = "Info", Content = "No unredeemed codes found.", Duration = 3 })
-        end
+        WindUI:Notify({ Title = "Success", Content = "Sent " .. count .. " codes.", Duration = 4 })
     end
 })
 
 local WeaponSection = SettingsTab:Section({ Title = "Weapon" })
-
 local WeaponDropdown = WeaponSection:Dropdown({
-    Title = "Select Weapon",
-    Desc = "Select your tool.",
-    Values = getWeapons(),
-    Value = nil,
-    Flag = "SelectedWeapon",
+    Title = "Select Weapon", Desc = "Select 'None' to unequip.", Values = getWeapons(), Value = nil, Flag = "SelectedWeapon",
     Callback = function(val) SelectedWeaponName = val end
 })
-
-WeaponSection:Button({
-    Title = "Refresh Weapons",
-    Icon = "refresh-ccw",
-    Callback = function() WeaponDropdown:Refresh(getWeapons()) end
-})
+WeaponSection:Button({ Title = "Refresh Weapons", Icon = "refresh-ccw", Callback = function() WeaponDropdown:Refresh(getWeapons()) end })
 
 local CombatSection = SettingsTab:Section({ Title = "Combat Logic" })
+CombatSection:Dropdown({ Title = "Position", Values = {"Top", "Under", "Behind"}, Value = "Top", Flag = "FarmPos", Callback = function(val) FarmingPosition = val end })
+CombatSection:Slider({ Title = "Distance", Value = { Min = 0, Max = 20, Default = 7 }, Flag = "FarmDist", Callback = function(val) FarmingDistance = val end })
 
-CombatSection:Dropdown({
-    Title = "Position",
-    Values = {"Top", "Under", "Behind"},
-    Value = "Top",
-    Flag = "FarmPos",
-    Callback = function(val) FarmingPosition = val end
-})
+local SkillDropdown = CombatSection:Dropdown({ Title = "Auto Skills", Multi = true, Values = {"Z", "X", "C", "V", "F", "B"}, Value = {}, Flag = "FarmSkills", Callback = function(val) SelectedAbilities = val end })
+-- Clear Skills Button
+CombatSection:Button({ Title = "Clear Skills", Icon = "trash", Callback = function() 
+    SelectedAbilities = {}
+    SkillDropdown:Refresh({"Z", "X", "C", "V", "F", "B"}, {})
+end })
 
-CombatSection:Slider({
-    Title = "Distance",
-    Value = { Min = 0, Max = 20, Default = 7 },
-    Flag = "FarmDist",
-    Callback = function(val) FarmingDistance = val end
-})
-
-CombatSection:Dropdown({
-    Title = "Auto Skills",
-    Multi = true,
-    Values = {"Z", "X", "C", "V", "F", "B"},
-    Value = {},
-    Flag = "FarmSkills",
-    Callback = function(val) SelectedAbilities = val end
-})
-
---// --- CONFIGURATION --- //--
-
+-- Config
 local ConfigSection = SettingsTab:Section({ Title = "Configuration" })
 local ConfigManager = Window.ConfigManager
 ConfigManager:Init(Window)
-
 local ConfigNameInput = ConfigSection:Input({ Title = "Config Name", Value = "Default", ClearTextOnFocus = false })
+ConfigSection:Button({ Title = "Save Config", Icon = "save", Callback = function() local n = ConfigNameInput.ElementFrame.Frame.TextBox.Text; if n=="" then n="Default" end; ConfigManager:CreateConfig(n):Save(); WindUI:Notify({Title="Saved",Content=n,Duration=2}) end })
+ConfigSection:Button({ Title = "Load Config", Icon = "file-up", Callback = function() local n = ConfigNameInput.ElementFrame.Frame.TextBox.Text; if n=="" then n="Default" end; if ConfigManager:CreateConfig(n):Load() then WindUI:Notify({Title="Loaded",Content=n,Duration=2}) end end })
 
-ConfigSection:Button({
-    Title = "Save Config",
-    Icon = "save",
-    Callback = function()
-        local name = ConfigNameInput.ElementFrame.Frame.TextBox.Text
-        if name == "" then name = "Default" end
-        local config = ConfigManager:CreateConfig(name)
-        config:Save()
-        WindUI:Notify({ Title = "Saved", Content = "Config saved: " .. name, Duration = 2 })
-    end
-})
-
-ConfigSection:Button({
-    Title = "Load Config",
-    Icon = "file-up",
-    Callback = function()
-        local name = ConfigNameInput.ElementFrame.Frame.TextBox.Text
-        if name == "" then name = "Default" end
-        local config = ConfigManager:CreateConfig(name)
-        if config:Load() then
-            WindUI:Notify({ Title = "Loaded", Content = "Config loaded: " .. name, Duration = 2 })
-        end
-    end
-})
-
---// --- TOGGLE BUTTON --- //--
-
+-- Toggle Button
 task.spawn(function()
-    local toggleGui = Instance.new("ScreenGui")
-    toggleGui.Name = "WindUI_Toggle"
-    toggleGui.Parent = game:GetService("CoreGui")
-    if not toggleGui.Parent then toggleGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
-    
-    local toggleBtn = Instance.new("TextButton")
-    toggleBtn.Name = "ToggleBtn"
-    toggleBtn.Parent = toggleGui
-    toggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    toggleBtn.Position = UDim2.new(0, 10, 0.5, -25)
-    toggleBtn.Size = UDim2.new(0, 50, 0, 50)
-    toggleBtn.Font = Enum.Font.GothamBold
-    toggleBtn.Text = "UI"
-    toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    toggleBtn.TextSize = 18
-    toggleBtn.AutoButtonColor = true
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 10)
-    corner.Parent = toggleBtn
-    
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(255, 255, 255)
-    stroke.Thickness = 2
-    stroke.Transparency = 0.8
-    stroke.Parent = toggleBtn
-    
+    local toggleGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
+    local toggleBtn = Instance.new("TextButton", toggleGui)
+    toggleBtn.Name = "ToggleBtn"; toggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    toggleBtn.Position = UDim2.new(0, 10, 0.5, -25); toggleBtn.Size = UDim2.new(0, 50, 0, 50)
+    toggleBtn.Text = "UI"; toggleBtn.TextColor3 = Color3.new(1,1,1); toggleBtn.AutoButtonColor = true
+    Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 10)
     MakeDraggable(toggleBtn)
-    
-    toggleBtn.MouseButton1Click:Connect(function()
-        Window:Toggle()
-    end)
+    toggleBtn.MouseButton1Click:Connect(function() Window:Toggle() end)
 end)
 
---// --- MAIN LOGIC LOOP --- //--
 
-RunService.Heartbeat:Connect(function()
-    Character = LocalPlayer.Character
-    if not Character or not Character:FindFirstChild("HumanoidRootPart") then return end
-    
-    local Humanoid = Character:FindFirstChild("Humanoid")
-    local RootPart = Character:FindFirstChild("HumanoidRootPart")
-    
-    if not Humanoid or Humanoid.Health <= 0 then return end
+--// === LINEAR FARMING LOGIC === //--
 
-    if not IsFarming and not IsBossFarming and not IsDungeonFarming then return end
-
-    -- 1. Haki
+local function FindTarget()
     local mainFolder = Workspace:FindFirstChild("Main")
-    if mainFolder then
-        local playerFolder = mainFolder:FindFirstChild(LocalPlayer.Name)
-        if playerFolder and not playerFolder:FindFirstChild("HakiActive") then
-            pressKey("T")
-        end
-    end
-
-    -- 2. Equip
-    if SelectedWeaponName then
-        local Tool = Character:FindFirstChild(SelectedWeaponName)
-        if not Tool then
-            local Backpack = LocalPlayer:FindFirstChild("Backpack")
-            if Backpack and Backpack:FindFirstChild(SelectedWeaponName) then
-                Humanoid:EquipTool(Backpack[SelectedWeaponName])
-            end
-        else
-            if (IsFarming or IsBossFarming or IsDungeonFarming) and (CurrentTarget or DungeonTarget) then
-                Tool:Activate()
-            end
-        end
-    end
-
-    -- 3. Target Logic
-    local TargetToAttack = nil
+    if not mainFolder then return nil end
+    local targets = mainFolder:GetDescendants() -- Scan Once
 
     if IsDungeonFarming then
-        if not DungeonTarget or not DungeonTarget.Parent or not DungeonTarget:FindFirstChild("Humanoid") or DungeonTarget.Humanoid.Health <= 0 then
-            DungeonTarget = nil
-            if mainFolder then
-                for _, obj in pairs(mainFolder:GetDescendants()) do
-                    if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then
-                        if not obj:FindFirstChild("DamageCounter") and obj.Name ~= LocalPlayer.Name then
-                            DungeonTarget = obj
-                            StatusLabel:SetTitle("Attacking: " .. obj.Name)
-                            break
-                        end
-                    end
+        for _, obj in pairs(targets) do
+            if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then
+                if not obj:FindFirstChild("DamageCounter") and obj.Name ~= LocalPlayer.Name then
+                    return obj
                 end
             end
         end
-        TargetToAttack = DungeonTarget
-
-    elseif IsBossFarming then
-        if not CurrentTarget or not CurrentTarget.Parent or not CurrentTarget:FindFirstChild("Humanoid") or CurrentTarget.Humanoid.Health <= 0 then
-            CurrentTarget = nil
-            
-            for i = #BossPriorityList, 1, -1 do
-                local bossName = BossPriorityList[i]
-                if CurrentTarget then break end
-                
-                if bossName == "Benimaru" then
-                    local foundClone = false
-                    for _, obj in pairs(mainFolder:GetDescendants()) do
-                        if (obj.Name == "Benimaru Clone" or obj.Name == "Benimaru Clone2") and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then
-                            CurrentTarget = obj
-                            foundClone = true
-                            break
-                        end
-                    end
-                    
-                    if not foundClone then
-                        local spawner = Workspace:FindFirstChild("Npc") and Workspace.Npc:FindFirstChild("BenimaruSpawner")
-                        if spawner then
-                            local part = spawner:FindFirstChild("Head") or spawner:FindFirstChild("HumanoidRootPart") or spawner
-                            if part then
-                                Character.HumanoidRootPart.CFrame = part.CFrame * CFrame.new(0, 0, 3)
-                                Character.HumanoidRootPart.Velocity = Vector3.new(0,0,0)
-                                task.wait(0.5)
-                                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-                                task.wait(0.1)
-                                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-                                task.wait(3)
-                                return
-                            end
-                        end
-                    end
-                else
-                    if mainFolder then
-                        for _, obj in pairs(mainFolder:GetDescendants()) do
-                            if obj.Name == bossName and obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then
-                                CurrentTarget = obj
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        TargetToAttack = CurrentTarget
-
-    elseif IsFarming then
-        if not CurrentTarget or not CurrentTarget.Parent or not CurrentTarget:FindFirstChild("Humanoid") or CurrentTarget.Humanoid.Health <= 0 then
-            CurrentTarget = nil
-            for _, name in ipairs(TargetPriorityList) do
-                if CurrentTarget then break end
-                if mainFolder then
-                    for _, obj in pairs(mainFolder:GetDescendants()) do
-                        if obj.Name == name and obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then
-                            CurrentTarget = obj
-                            break
-                        end
-                    end
-                end
-            end
-        end
-        TargetToAttack = CurrentTarget
     end
 
-    -- 4. Movement & Skills
-    if TargetToAttack and TargetToAttack:FindFirstChild("HumanoidRootPart") then
-        local TargetRoot = TargetToAttack.HumanoidRootPart
-        local Offset = CFrame.new(0, 0, 0)
+    if IsBossFarming then
+        for i = #BossPriorityList, 1, -1 do
+            local name = BossPriorityList[i]
+            if name == "Benimaru" then
+                for _, obj in pairs(targets) do
+                    if (obj.Name == "Benimaru Clone" or obj.Name == "Benimaru Clone2") and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then
+                        return obj
+                    end
+                end
+            else
+                for _, obj in pairs(targets) do
+                    if obj.Name == name and obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then
+                        return obj
+                    end
+                end
+            end
+        end
+    end
 
-        if FarmingPosition == "Top" then
-            Offset = CFrame.new(0, FarmingDistance, 0) * CFrame.Angles(math.rad(-90), 0, 0)
-        elseif FarmingPosition == "Under" then
-            Offset = CFrame.new(0, -FarmingDistance, 0) * CFrame.Angles(math.rad(90), 0, 0)
-        elseif FarmingPosition == "Behind" then
-            Offset = CFrame.new(0, 0, FarmingDistance)
+    if IsFarming then
+        for _, name in ipairs(TargetPriorityList) do
+            for _, obj in pairs(targets) do
+                if obj.Name == name and obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then
+                    return obj
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function SpawnBenimaru()
+    local spawner = Workspace:FindFirstChild("Npc") and Workspace.Npc:FindFirstChild("BenimaruSpawner")
+    if spawner then
+        local part = spawner:FindFirstChild("Head") or spawner:FindFirstChild("HumanoidRootPart") or spawner
+        if part and Character and Character:FindFirstChild("HumanoidRootPart") then
+            Character.HumanoidRootPart.CFrame = part.CFrame * CFrame.new(0, 0, 3)
+            Character.HumanoidRootPart.Velocity = Vector3.new(0,0,0)
+            task.wait(0.5)
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+            task.wait(0.1)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            task.wait(1.5)
+        end
+    end
+end
+
+-- // SEPARATE SKILL LOOP // --
+task.spawn(function()
+    while true do
+        task.wait(0.1) -- Fast tick
+        if ActiveTarget and ActiveTarget:FindFirstChild("Humanoid") and ActiveTarget.Humanoid.Health > 0 and (IsFarming or IsBossFarming or IsDungeonFarming) then
+            if #SelectedAbilities > 0 then
+                for _, key in ipairs(SelectedAbilities) do
+                    -- Only press if we still have a target
+                    if not ActiveTarget or ActiveTarget.Humanoid.Health <= 0 then break end
+                    
+                    pressKey(key)
+                    task.wait(0.8) -- Delay between skills
+                end
+            end
+        end
+    end
+end)
+
+-- // MAIN MOVEMENT LOOP // --
+task.spawn(function()
+    while true do
+        task.wait() 
+
+        if IsFarming or IsBossFarming or IsDungeonFarming then
+            Character = LocalPlayer.Character
+            
+            -- Haki
+            local mainFolder = Workspace:FindFirstChild("Main")
+            if mainFolder then
+                local playerFolder = mainFolder:FindFirstChild(LocalPlayer.Name)
+                if playerFolder and not playerFolder:FindFirstChild("HakiActive") then
+                    pressKey("T")
+                end
+            end
+
+            -- Find Target
+            local target = FindTarget()
+            
+            -- Benimaru Spawn
+            if not target and IsBossFarming and table.find(BossPriorityList, "Benimaru") then
+                SpawnBenimaru()
+                target = FindTarget()
+            end
+
+            -- Combat Lock-on
+            if target and target:FindFirstChild("Humanoid") and target:FindFirstChild("HumanoidRootPart") then
+                ActiveTarget = target
+                local hum = target.Humanoid
+                local root = target.HumanoidRootPart
+                
+                while hum.Health > 0 and (IsFarming or IsBossFarming or IsDungeonFarming) do
+                    -- Update Position
+                    if Character and Character:FindFirstChild("HumanoidRootPart") then
+                         local Offset = CFrame.new(0, 0, 0)
+                         if FarmingPosition == "Top" then Offset = CFrame.new(0, FarmingDistance, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+                         elseif FarmingPosition == "Under" then Offset = CFrame.new(0, -FarmingDistance, 0) * CFrame.Angles(math.rad(90), 0, 0)
+                         elseif FarmingPosition == "Behind" then Offset = CFrame.new(0, 0, FarmingDistance)
+                         else Offset = CFrame.new(0, FarmingDistance, 0) end
+                         
+                         Character.HumanoidRootPart.CFrame = root.CFrame * Offset
+                         Character.HumanoidRootPart.Velocity = Vector3.new(0,0,0)
+                    end
+                    
+                    EquipWeapon()
+                    AttackM1()
+                    
+                    task.wait() 
+                end
+                ActiveTarget = nil
+            else
+                ActiveTarget = nil
+            end
         else
-            Offset = CFrame.new(0, FarmingDistance, 0)
-        end
-
-        RootPart.CFrame = TargetRoot.CFrame * Offset
-        RootPart.Velocity = Vector3.new(0, 0, 0)
-
-        for _, key in ipairs(SelectedAbilities) do
-            pressKey(key)
-        end
-    else
-        if (IsFarming or IsBossFarming or IsDungeonFarming) then
-            RootPart.Velocity = Vector3.new(0, 0, 0)
+            ActiveTarget = nil
+            task.wait(0.5) 
         end
     end
 end)

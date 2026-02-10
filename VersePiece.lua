@@ -30,6 +30,7 @@ local IsFarming = false
 local IsBossFarming = false
 local IsDungeonFarming = false
 local ActiveTarget = nil 
+local IsSpawningJulius = false -- NEW FLAG
 
 --// Variables (Spinning)
 local IsSpinning = false
@@ -48,7 +49,7 @@ local BossPriorityList = {}
 --// DATA STRUCTURES
 local TargetCache = {} 
 local LastTargetFoundTime = tick() 
-local CurrentSelectedMobs = {} -- This is now the direct farm list
+local CurrentSelectedMobs = {} 
 
 --// --- HELPER FUNCTIONS --- //--
 
@@ -65,6 +66,15 @@ local function pressKey(keyName)
     end
 end
 
+local function holdKey(keyName, duration)
+    local key = Enum.KeyCode[keyName]
+    if key then
+        VirtualInputManager:SendKeyEvent(true, key, false, game)
+        task.wait(duration)
+        VirtualInputManager:SendKeyEvent(false, key, false, game)
+    end
+end
+
 local function sendChat(msg)
     if TextChatService.ChatInputBarConfiguration.TargetTextChannel then
         TextChatService.ChatInputBarConfiguration.TargetTextChannel:SendAsync(msg)
@@ -73,29 +83,19 @@ local function sendChat(msg)
     end
 end
 
---// IMPROVED CLICK FUNCTION (Offset Fix)
 local function ClickGuiButton(btn)
     if not btn then return end
-    
-    -- Method 1: Virtual Mouse (With GUI Inset Fix)
     if btn.Visible then
         local pos = btn.AbsolutePosition
         local size = btn.AbsoluteSize
         local inset = GuiService:GetGuiInset() 
         local center = pos + (size / 2) + inset 
-        
         VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 1)
         task.wait(0.05)
         VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 1)
     end
-
-    -- Method 2: FireSignal
     pcall(function() if firesignal then firesignal(btn.MouseButton1Click) end end)
-
-    -- Method 3: Connections
     pcall(function() for _, connection in pairs(getconnections(btn.MouseButton1Click)) do connection:Fire() end end)
-
-    -- Method 4: Activate
     pcall(function() if btn.Activate then btn:Activate() end end)
 end
 
@@ -145,7 +145,6 @@ local function getMobs()
     local seen = {}
     local main = Workspace:FindFirstChild("Main")
     if main then
-        -- Scans ALL descendants of Main to find mobs anywhere
         for _, obj in pairs(main:GetDescendants()) do
             if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Name ~= LocalPlayer.Name then
                 if not obj:FindFirstChild("DamageCounter") then
@@ -177,10 +176,10 @@ end
 --// --- UI SETUP --- //--
 
 local Window = WindUI:CreateWindow({
-    Title = "Auto Farm | Direct Select v20",
+    Title = "Auto Farm | Julius Fix v22",
     Icon = "sword",
     Author = ".ftgs",
-    Folder = "WindUI_v20",
+    Folder = "WindUI_v22",
     Size = UDim2.fromOffset(580, 500),
     Transparent = true,
     Theme = "Dark",
@@ -196,46 +195,22 @@ local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings" })
 
 --// --- FARM TAB --- //--
 local TargetSection = FarmTab:Section({ Title = "Select & Farm" })
-
 local MobDropdown = TargetSection:Dropdown({ 
-    Title = "Select Mobs", 
-    Desc = "Scans entire map.", 
-    Multi = true, 
-    Values = getMobs(), 
-    Value = {}, 
-    Callback = function(val) 
-        CurrentSelectedMobs = val 
-        TargetCache = {} -- Reset cache when selection changes to find new mobs immediately
-    end 
+    Title = "Select Mobs", Desc = "Scans entire map.", Multi = true, Values = getMobs(), Value = {}, 
+    Callback = function(val) CurrentSelectedMobs = val; TargetCache = {} end 
 })
-
-TargetSection:Button({ 
-    Title = "Refresh Mobs List", 
-    Icon = "refresh-cw", 
-    Callback = function() MobDropdown:Refresh(getMobs(), CurrentSelectedMobs) end 
-})
-
+TargetSection:Button({ Title = "Refresh Mobs List", Icon = "refresh-cw", Callback = function() MobDropdown:Refresh(getMobs(), CurrentSelectedMobs) end })
 FarmTab:Section({ Title = "Control" })
-FarmTab:Toggle({ 
-    Title = "Enable Auto Farm", 
-    Flag = "AutoFarm", 
-    Callback = function(val) 
-        IsFarming = val
-        TargetCache = {}
-        LastTargetFoundTime = tick()
-        if val then 
-            IsBossFarming = false
-            IsDungeonFarming = false 
-            if #CurrentSelectedMobs == 0 then
-                WindUI:Notify({Title="Warning", Content="No mobs selected!", Duration=3})
-            end
-        end 
+FarmTab:Toggle({ Title = "Enable Auto Farm", Flag = "AutoFarm", Callback = function(val) 
+    IsFarming = val; TargetCache = {}; LastTargetFoundTime = tick()
+    if val then IsBossFarming = false; IsDungeonFarming = false 
+        if #CurrentSelectedMobs == 0 then WindUI:Notify({Title="Warning", Content="No mobs selected!", Duration=3}) end
     end 
-})
+end })
 
 --// --- BOSS TAB --- //--
 local BossSection = BossTab:Section({ Title = "Boss Selection" })
-local BossListNames = {"Benimaru", "Arthur Boyle", "Shinra", "Joker"}
+local BossListNames = {"Benimaru", "Arthur Boyle", "Shinra", "Joker", "Yuno", "Julius"}
 local BossDropdown = BossSection:Dropdown({ Title = "Select Bosses", Desc = "Top to Bottom.", Multi = true, Values = BossListNames, Value = {}, Flag = "BossList", Callback = function(val) BossPriorityList=val end })
 BossSection:Button({ Title = "Clear Selection", Icon = "trash", Callback = function() BossPriorityList={}; BossDropdown:Refresh(BossListNames, {}) end })
 BossTab:Section({ Title = "Control" })
@@ -287,7 +262,6 @@ end)
 --// === LOGIC FUNCTIONS === //--
 
 local function ForceLoadMap()
-    -- Only attempt reload if we have mobs selected
     if #CurrentSelectedMobs > 0 then
         local main = Workspace:FindFirstChild("Main")
         if main then
@@ -304,7 +278,65 @@ local function ForceLoadMap()
     end
 end
 
+-- // SPAWN LOOP (JULIUS FIX) // --
+task.spawn(function()
+    while true do
+        task.wait(2) -- Faster check (2s)
+        if IsBossFarming and table.find(BossPriorityList, "Julius") then
+            -- 1. Check if Boss is already alive (Priority)
+            local bossExists = false
+            local main = Workspace:FindFirstChild("Main")
+            if main and main:FindFirstChild("Julius") and main.Julius:FindFirstChild("Humanoid") and main.Julius.Humanoid.Health > 0 then
+                bossExists = true
+            end
+
+            -- 2. If Boss is NOT alive, check requirement to spawn
+            if not bossExists then
+                local npcFolder = Workspace:FindFirstChild("Npc")
+                local misc = npcFolder and npcFolder:FindFirstChild("Misc")
+                local juliusNPC = misc and misc:FindFirstChild("Julios Boss")
+                
+                if juliusNPC then
+                    local prompt = juliusNPC:FindFirstChild("ProximityPrompt")
+                    if prompt then
+                        local text = prompt.ObjectText or prompt.ActionText or ""
+                        local countStr = string.match(text, "Defeat%s*(%d+)/100")
+                        
+                        if countStr then
+                            local count = tonumber(countStr)
+                            if count and count >= 100 then
+                                -- !!! STOP FARMING -> SPAWN BOSS !!!
+                                IsSpawningJulius = true 
+                                ActiveTarget = nil -- Force break the farming loop
+                                
+                                WindUI:Notify({Title="Julius Boss", Content="Requirement met! Spawning...", Duration=3})
+                                if Character and Character:FindFirstChild("HumanoidRootPart") and juliusNPC:FindFirstChild("HumanoidRootPart") then
+                                    -- Teleport
+                                    Character.HumanoidRootPart.CFrame = juliusNPC.HumanoidRootPart.CFrame * CFrame.new(0,0,3)
+                                    task.wait(0.5)
+                                    holdKey("E", 1) -- Hold E longer (1s) to be safe
+                                    task.wait(3) -- Wait for spawn animation
+                                end
+                                IsSpawningJulius = false -- Resume finding targets (which will be the boss now)
+                            else
+                                IsSpawningJulius = false
+                            end
+                        end
+                    end
+                end
+            else
+                IsSpawningJulius = false
+            end
+        else
+            IsSpawningJulius = false
+        end
+    end
+end)
+
 local function GetNextTarget()
+    -- If we are busy spawning Julius, DO NOT pick a target
+    if IsSpawningJulius then return nil end
+
     for i = #TargetCache, 1, -1 do
         local mob = TargetCache[i]
         if mob and mob.Parent and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
@@ -333,6 +365,30 @@ local function GetNextTarget()
                     for _, obj in pairs(targets) do
                         if (obj.Name == "Benimaru Clone" or obj.Name == "Benimaru Clone2") and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then return obj end
                     end
+                elseif name == "Yuno" then
+                    local village = main:FindFirstChild("Hage Village")
+                    if village then
+                        local yuno = village:FindFirstChild("Yuno") 
+                        if yuno and yuno:FindFirstChild("Humanoid") and yuno.Humanoid.Health > 0 then return yuno end
+                    end
+                    for _, obj in pairs(targets) do
+                        if obj.Name == "Yuno" and obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then return obj end
+                    end
+                elseif name == "Julius" then
+                    -- Priority 1: The Boss
+                    local juliusBoss = main:FindFirstChild("Julius")
+                    if juliusBoss and juliusBoss:FindFirstChild("Humanoid") and juliusBoss.Humanoid.Health > 0 then 
+                        return juliusBoss 
+                    end
+                    
+                    -- Priority 2: Farm Aspirants IF NOT SPAWNING
+                    if not IsSpawningJulius then
+                        for _, obj in pairs(targets) do
+                            if obj.Name == "Magic Aspirant" and obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then 
+                                return obj 
+                            end
+                        end
+                    end
                 else
                     for _, obj in pairs(targets) do
                         if obj.Name == name and obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then return obj end
@@ -347,7 +403,6 @@ local function GetNextTarget()
         local main = Workspace:FindFirstChild("Main")
         if main then
             for _, obj in pairs(main:GetDescendants()) do
-                -- Check if obj.Name matches any of our selected strings
                 if table.find(CurrentSelectedMobs, obj.Name) and obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.Health > 0 then
                      table.insert(TargetCache, obj)
                 end
@@ -384,7 +439,7 @@ local function SpawnBenimaru()
     end
 end
 
--- // SPIN LOOP (UPDATED) // --
+-- // SPIN LOOP // --
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -403,7 +458,6 @@ task.spawn(function()
                     local currentTrait = traitVal.Value
                     if currentTrait == DesiredTrait then
                         IsSpinning = false; SpinToggle:Set(false); WindUI:Notify({Title="Success!",Content="Got: "..currentTrait,Duration=10})
-                        -- Keeps running so you can start again easily
                     end
                     if currentTrait == LastTraitVal then TraitStuckCount = TraitStuckCount + 1 else TraitStuckCount = 0; LastTraitVal = currentTrait end
                     
@@ -435,7 +489,7 @@ task.spawn(function()
     end
 end)
 
--- // MAIN MOVEMENT LOOP // --
+-- // MAIN MOVEMENT LOOP (UPDATED TO BREAK ON ACTIVETARGET CHANGE) // --
 task.spawn(function()
     while true do
         task.wait() 
@@ -454,7 +508,10 @@ task.spawn(function()
             if target and target:FindFirstChild("Humanoid") and target:FindFirstChild("HumanoidRootPart") then
                 ActiveTarget = target
                 local hum = target.Humanoid; local root = target.HumanoidRootPart
-                while hum.Health > 0 and (IsFarming or IsBossFarming or IsDungeonFarming) do
+                
+                -- Modified loop: Checks if ActiveTarget matches target. 
+                -- If we set ActiveTarget = nil in spawn loop, this breaks instantly.
+                while hum.Health > 0 and (IsFarming or IsBossFarming or IsDungeonFarming) and ActiveTarget == target do
                     if Character and Character:FindFirstChild("HumanoidRootPart") then
                          local Offset = CFrame.new(0, 0, 0)
                          if FarmingPosition == "Top" then Offset = CFrame.new(0, FarmingDistance, 0) * CFrame.Angles(math.rad(-90), 0, 0)

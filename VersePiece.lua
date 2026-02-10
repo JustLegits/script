@@ -312,7 +312,7 @@ task.spawn(function()
                                 WindUI:Notify({Title="Julius Boss", Content="Requirement met! Spawning...", Duration=3})
                                 if Character and Character:FindFirstChild("HumanoidRootPart") and juliusNPC:FindFirstChild("HumanoidRootPart") then
                                     -- Teleport
-                                    Character.HumanoidRootPart.CFrame = juliusNPC.HumanoidRootPart.CFrame * CFrame.new(0,0,3)
+                                    Character.HumanoidRootPart.CFrame = juliusNPC.HumanoidRootPart.CFrame * CFrame.new(0,8,0)
                                     task.wait(0.5)
                                     holdKey("E", 1) -- Hold E longer (1s) to be safe
                                     task.wait(3) -- Wait for spawn animation

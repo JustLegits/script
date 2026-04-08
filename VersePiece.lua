@@ -37,7 +37,8 @@ local IsFarming = false
 local IsBossFarming = false
 local IsDungeonFarming = false
 local ActiveTarget = nil 
-local IsSpawningJulius = false -- NEW FLAG
+local IsSpawningJulius = false
+local LastTargetPosition = nil -- ADDED: Tracks the last NPC's position
 
 --// Variables (Spinning)
 local IsSpinning = false
@@ -269,19 +270,27 @@ end)
 --// === LOGIC FUNCTIONS === //--
 
 local function ForceLoadMap()
-    if #CurrentSelectedMobs > 0 then
-        local main = Workspace:FindFirstChild("Main")
-        if main then
-            local parts = {}
-            for _, v in pairs(main:GetDescendants()) do if v:IsA("BasePart") then table.insert(parts, v) end end
-            if #parts > 0 then
-                local randomPart = parts[math.random(1, #parts)]
-                if Character and Character:FindFirstChild("HumanoidRootPart") then
+    if Character and Character:FindFirstChild("HumanoidRootPart") then
+        if LastTargetPosition then
+            -- Teleport to the exact location of the last targeted NPC
+            Character.HumanoidRootPart.CFrame = CFrame.new(LastTargetPosition) * CFrame.new(0, 10, 0)
+            if Character.HumanoidRootPart:IsA("BasePart") then
+                Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
+            end
+            WindUI:Notify({Title="Anti-Stuck",Content="Teleported to last NPC location.",Duration=2})
+        elseif #CurrentSelectedMobs > 0 then
+            -- Fallback: Only runs if the script just started and no NPC was found yet
+            local main = Workspace:FindFirstChild("Main")
+            if main then
+                local parts = {}
+                for _, v in pairs(main:GetDescendants()) do if v:IsA("BasePart") then table.insert(parts, v) end end
+                if #parts > 0 then
+                    local randomPart = parts[math.random(1, #parts)]
                     Character.HumanoidRootPart.CFrame = randomPart.CFrame * CFrame.new(0, 10, 0)
                     if Character.HumanoidRootPart:IsA("BasePart") then
                         Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
                     end
-                    WindUI:Notify({Title="Anti-Stuck",Content="Teleported to reload NPCs.",Duration=2})
+                    WindUI:Notify({Title="Anti-Stuck",Content="Initial map load.",Duration=2})
                 end
             end
         end
@@ -527,6 +536,9 @@ task.spawn(function()
                     if not Character or not Character:FindFirstChild("Humanoid") or Character.Humanoid.Health <= 0 then break end
 
                     if Character and Character:FindFirstChild("HumanoidRootPart") then
+                         -- ADDED: Constantly record the current NPC's location
+                         LastTargetPosition = root.Position
+
                          local Offset = CFrame.new(0, 0, 0)
                          if FarmingPosition == "Top" then Offset = CFrame.new(0, FarmingDistance, 0) * CFrame.Angles(math.rad(-90), 0, 0)
                          elseif FarmingPosition == "Under" then Offset = CFrame.new(0, -FarmingDistance, 0) * CFrame.Angles(math.rad(90), 0, 0)

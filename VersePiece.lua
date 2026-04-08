@@ -18,12 +18,19 @@ local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local UserInputService = game:GetService("UserInputService")
 local TextChatService = game:GetService("TextChatService")
+local VirtualUser = game:GetService("VirtualUser")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GuiService = game:GetService("GuiService")
 
 --// Local Player
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+-- Anti-AFK
+LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+end)
 
 --// Variables (Farming)
 local IsFarming = false
@@ -271,6 +278,9 @@ local function ForceLoadMap()
                 local randomPart = parts[math.random(1, #parts)]
                 if Character and Character:FindFirstChild("HumanoidRootPart") then
                     Character.HumanoidRootPart.CFrame = randomPart.CFrame * CFrame.new(0, 10, 0)
+                    if Character.HumanoidRootPart:IsA("BasePart") then
+                        Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                    end
                     WindUI:Notify({Title="Anti-Stuck",Content="Teleported to reload NPCs.",Duration=2})
                 end
             end
@@ -337,11 +347,12 @@ local function GetNextTarget()
     -- If we are busy spawning Julius, DO NOT pick a target
     if IsSpawningJulius then return nil end
 
-    for i = #TargetCache, 1, -1 do
-        local mob = TargetCache[i]
-        if mob and mob.Parent and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
-            table.remove(TargetCache, i); LastTargetFoundTime = tick(); return mob
-        else table.remove(TargetCache, i) end
+    while #TargetCache > 0 do
+        local mob = table.remove(TargetCache, 1)
+        if mob and mob.Parent and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 and mob:FindFirstChild("HumanoidRootPart") then
+            LastTargetFoundTime = tick()
+            return mob
+        end
     end
 
     if IsDungeonFarming then
@@ -512,6 +523,9 @@ task.spawn(function()
                 -- Modified loop: Checks if ActiveTarget matches target. 
                 -- If we set ActiveTarget = nil in spawn loop, this breaks instantly.
                 while hum.Health > 0 and (IsFarming or IsBossFarming or IsDungeonFarming) and ActiveTarget == target do
+                    Character = LocalPlayer.Character
+                    if not Character or not Character:FindFirstChild("Humanoid") or Character.Humanoid.Health <= 0 then break end
+
                     if Character and Character:FindFirstChild("HumanoidRootPart") then
                          local Offset = CFrame.new(0, 0, 0)
                          if FarmingPosition == "Top" then Offset = CFrame.new(0, FarmingDistance, 0) * CFrame.Angles(math.rad(-90), 0, 0)
@@ -519,7 +533,8 @@ task.spawn(function()
                          elseif FarmingPosition == "Behind" then Offset = CFrame.new(0, 0, FarmingDistance)
                          else Offset = CFrame.new(0, FarmingDistance, 0) end
                          Character.HumanoidRootPart.CFrame = root.CFrame * Offset
-                         Character.HumanoidRootPart.Velocity = Vector3.new(0,0,0)
+                         Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                         Character.HumanoidRootPart.AssemblyAngularVelocity = Vector3.new(0,0,0)
                     end
                     EquipWeapon(); AttackM1(); task.wait() 
                 end
